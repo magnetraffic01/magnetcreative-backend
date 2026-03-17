@@ -1,81 +1,51 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const { authenticate } = require('../middleware/auth');
-const { uploadToGemini, analyzeContent } = require('../services/gemini');
+const { uploadUrlToGemini, analyzeContent } = require('../services/gemini');
 
 const router = express.Router();
 
-// File upload config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '..', '..', 'uploads');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  }
-});
-const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
-
-// MIME type mapping
-function getMimeType(filename) {
-  const ext = path.extname(filename).toLowerCase();
-  const map = {
-    '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.webm': 'video/webm',
-    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
-    '.pdf': 'application/pdf'
-  };
-  return map[ext] || 'application/octet-stream';
-}
-
-// Content type from MIME
-function getContentType(mimeType) {
-  if (mimeType.startsWith('video/')) return 'video';
-  if (mimeType.startsWith('image/')) return 'imagen';
-  if (mimeType === 'application/pdf') return 'presentacion';
-  return 'plantilla';
-}
-
-// POST /submissions - Upload and analyze
-router.post('/', authenticate, upload.single('archivo'), async (req, res, next) => {
+// POST /submissions - Submit creative by URL
+router.post('/', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const { titulo, tipo, negocio, plataforma, formato, descripcion, contenido_email } = req.body;
+    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, contenido_email } = req.body;
 
     if (!titulo || !negocio) {
       return res.status(400).json({ error: 'Titulo and negocio are required' });
     }
 
-    const finalTipo = tipo || (req.file ? getContentType(getMimeType(req.file.originalname)) : 'email');
+    const finalTipo = tipo || 'video';
+
+    if (finalTipo !== 'email' && !archivo_url) {
+      return res.status(400).json({ error: 'archivo_url is required for non-email submissions' });
+    }
 
     // Insert submission
     const result = await pool.query(`
-      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, formato, descripcion, contenido_email, archivo_nombre, archivo_size, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'analizando')
+      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, contenido_email, estado)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'analizando')
       RETURNING *
-    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, contenido_email, req.file?.originalname, req.file?.size]);
+    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, contenido_email]);
 
     const submission = result.rows[0];
+    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo})`);
 
-    // Upload to Gemini if file exists
-    let geminiFileUri = null;
-    if (req.file) {
-      console.log(`[Upload] File received: ${req.file.originalname}, path: ${req.file.path}, size: ${req.file.size}`);
-      const mimeType = getMimeType(req.file.originalname);
-      const geminiFile = await uploadToGemini(req.file.path, mimeType);
-      geminiFileUri = geminiFile.uri;
-      await pool.query('UPDATE submissions SET gemini_file_uri = $1 WHERE id = $2', [geminiFileUri, submission.id]);
-      submission.gemini_file_uri = geminiFileUri;
-      console.log(`[Upload] Gemini URI: ${geminiFileUri}`);
+    // Upload URL to Gemini if not email
+    if (finalTipo !== 'email' && archivo_url) {
+      try {
+        const geminiFile = await uploadUrlToGemini(archivo_url);
+        await pool.query('UPDATE submissions SET gemini_file_uri = $1 WHERE id = $2', [geminiFile.uri, submission.id]);
+        submission.gemini_file_uri = geminiFile.uri;
+        console.log(`[Submission] Gemini URI set: ${geminiFile.uri}`);
+      } catch (uploadErr) {
+        console.error(`[Submission] Gemini upload failed: ${uploadErr.message}`);
+        // Continue with text-only analysis
+      }
     }
 
     // Analyze with AI
     try {
-      const analysis = await analyzeContent(submission, req.file?.path);
+      const analysis = await analyzeContent(submission);
 
       await pool.query(`
         UPDATE submissions SET
@@ -109,16 +79,12 @@ router.post('/', authenticate, upload.single('archivo'), async (req, res, next) 
         submission.id
       ]);
 
-      // Clean up local file
-      if (req.file) fs.unlink(req.file.path, () => {});
-
       const updated = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
       res.json({ submission: updated.rows[0] });
 
     } catch (aiErr) {
       console.error('AI analysis error:', aiErr.message);
-      await pool.query('UPDATE submissions SET estado = $1 WHERE id = $2', ['error', submission.id]);
-      if (req.file) fs.unlink(req.file.path, () => {});
+      await pool.query("UPDATE submissions SET estado = 'error' WHERE id = $1", [submission.id]);
       res.status(500).json({ error: 'AI analysis failed', details: aiErr.message });
     }
 
@@ -142,8 +108,7 @@ router.post('/email', authenticate, async (req, res, next) => {
     `, [req.user.id, titulo, negocio, descripcion, contenido_email]);
 
     const submission = result.rows[0];
-
-    const analysis = await analyzeContent(submission, null);
+    const analysis = await analyzeContent(submission);
 
     await pool.query(`
       UPDATE submissions SET
@@ -175,7 +140,6 @@ router.get('/', authenticate, async (req, res, next) => {
     let query = 'SELECT s.*, u.name as submitted_by FROM submissions s JOIN users u ON s.user_id = u.id WHERE 1=1';
     const params = [];
 
-    // Creative users only see their own
     if (req.user.role === 'creative') {
       params.push(req.user.id);
       query += ` AND s.user_id = $${params.length}`;
@@ -189,19 +153,6 @@ router.get('/', authenticate, async (req, res, next) => {
 
     const result = await pool.query(query, params);
     res.json({ submissions: result.rows });
-  } catch (error) { next(error); }
-});
-
-// GET /submissions/:id
-router.get('/:id', authenticate, async (req, res, next) => {
-  try {
-    const pool = req.app.get('db');
-    const result = await pool.query(
-      'SELECT s.*, u.name as submitted_by FROM submissions s JOIN users u ON s.user_id = u.id WHERE s.id = $1',
-      [req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    res.json({ submission: result.rows[0] });
   } catch (error) { next(error); }
 });
 
@@ -221,6 +172,19 @@ router.get('/stats/dashboard', authenticate, async (req, res, next) => {
       FROM submissions
     `);
     res.json({ stats: stats.rows[0] });
+  } catch (error) { next(error); }
+});
+
+// GET /submissions/:id
+router.get('/:id', authenticate, async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const result = await pool.query(
+      'SELECT s.*, u.name as submitted_by FROM submissions s JOIN users u ON s.user_id = u.id WHERE s.id = $1',
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ submission: result.rows[0] });
   } catch (error) { next(error); }
 });
 
