@@ -21,99 +21,7 @@ function getSystemPrompt(tipo) {
   return schemas[tipo] || schemas.imagen;
 }
 
-// Convert Google Drive share link to direct download URL
-function convertDriveUrl(url) {
-  // Match Google Drive file links
-  const match = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
-  if (match) {
-    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
-  }
-  // Already a direct link or other URL
-  return url;
-}
-
-// Download file from URL and upload to Gemini
-async function uploadUrlToGemini(fileUrl) {
-  const directUrl = convertDriveUrl(fileUrl);
-  console.log(`[Gemini] Downloading from URL: ${directUrl}`);
-
-  // Download the file (follow redirects)
-  const downloadRes = await fetch(directUrl, { redirect: 'follow' });
-  if (!downloadRes.ok) throw new Error(`Failed to download file: ${downloadRes.status}`);
-
-  const contentType = downloadRes.headers.get('content-type') || 'video/mp4';
-  const buffer = Buffer.from(await downloadRes.arrayBuffer());
-  const fileSize = buffer.length;
-
-  // Google Drive may return HTML for large files (virus scan warning)
-  if (contentType.includes('text/html') && fileSize < 100000) {
-    // Try confirm download for large files
-    const html = buffer.toString('utf8');
-    const confirmMatch = html.match(/confirm=([^&"]+)/);
-    if (confirmMatch) {
-      console.log(`[Gemini] Large file detected, confirming download...`);
-      const confirmUrl = `${directUrl}&confirm=${confirmMatch[1]}`;
-      const confirmRes = await fetch(confirmUrl, { redirect: 'follow' });
-      if (!confirmRes.ok) throw new Error(`Failed to confirm download: ${confirmRes.status}`);
-      const confirmBuffer = Buffer.from(await confirmRes.arrayBuffer());
-      const confirmType = confirmRes.headers.get('content-type') || 'video/mp4';
-      console.log(`[Gemini] Downloaded ${(confirmBuffer.length / 1024 / 1024).toFixed(2)} MB (${confirmType})`);
-      return await uploadBufferToGemini(confirmBuffer, confirmType);
-    }
-    throw new Error('Google Drive returned HTML instead of file. Make sure the file is shared publicly.');
-  }
-
-  console.log(`[Gemini] Downloaded ${(fileSize / 1024 / 1024).toFixed(2)} MB (${contentType})`);
-  return await uploadBufferToGemini(buffer, contentType);
-}
-
-// Upload buffer to Gemini
-async function uploadBufferToGemini(buffer, contentType) {
-  const fileSize = buffer.length;
-
-  console.log(`[Gemini] Downloaded ${(fileSize / 1024 / 1024).toFixed(2)} MB (${contentType})`);
-
-  // Upload to Gemini
-  const response = await fetch(`${GEMINI_URL}/files?key=${config.geminiApiKey}`, {
-    method: 'POST',
-    headers: {
-      'X-Goog-Upload-Command': 'start, upload, finalize',
-      'X-Goog-Upload-Header-Content-Length': fileSize.toString(),
-      'X-Goog-Upload-Header-Content-Type': contentType,
-      'Content-Type': contentType,
-    },
-    body: buffer,
-  });
-
-  const data = await response.json();
-  console.log(`[Gemini] Upload status: ${response.status}`);
-
-  if (!data.file) {
-    throw new Error(`Gemini upload failed: ${JSON.stringify(data).substring(0, 300)}`);
-  }
-
-  // Wait for processing
-  let file = data.file;
-  let attempts = 0;
-  console.log(`[Gemini] File state: ${file.state}, name: ${file.name}`);
-
-  while (file.state === 'PROCESSING' && attempts < 60) {
-    await new Promise(r => setTimeout(r, 3000));
-    const check = await fetch(`${GEMINI_URL}/files/${file.name.split('/')[1]}?key=${config.geminiApiKey}`);
-    file = await check.json();
-    attempts++;
-    if (attempts % 5 === 0) console.log(`[Gemini] Still processing... attempt ${attempts}`);
-  }
-
-  if (file.state !== 'ACTIVE') {
-    throw new Error(`File processing failed. State: ${file.state}`);
-  }
-
-  console.log(`[Gemini] File ready: ${file.uri}`);
-  return file;
-}
-
-// Analyze content with Gemini
+// Analyze content with Gemini using a file already uploaded (URI from frontend)
 async function analyzeContent(submission) {
   const tipo = submission.tipo;
   const systemPrompt = getSystemPrompt(tipo);
@@ -129,10 +37,8 @@ async function analyzeContent(submission) {
     contents = [{ role: 'user', parts: [{ text: userContext }] }];
   } else if (submission.gemini_file_uri) {
     const mimeTypes = {
-      video: 'video/mp4',
-      imagen: 'image/jpeg',
-      presentacion: 'application/pdf',
-      plantilla: 'image/jpeg'
+      video: 'video/mp4', imagen: 'image/jpeg',
+      presentacion: 'application/pdf', plantilla: 'image/jpeg'
     };
     contents = [{
       role: 'user',
@@ -145,7 +51,7 @@ async function analyzeContent(submission) {
     contents = [{ role: 'user', parts: [{ text: userContext }] }];
   }
 
-  console.log(`[Gemini] Analyzing submission: ${submission.titulo} (${tipo})`);
+  console.log(`[Gemini] Analyzing: ${submission.titulo} (${tipo}), URI: ${submission.gemini_file_uri || 'none'}`);
 
   const response = await fetch(`${GEMINI_URL}/models/gemini-2.5-flash:generateContent?key=${config.geminiApiKey}`, {
     method: 'POST',
@@ -158,8 +64,6 @@ async function analyzeContent(submission) {
   });
 
   const data = await response.json();
-  console.log(`[Gemini] Analysis response status: ${response.status}`);
-
   const text = data.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
 
   let parsed = {};
@@ -174,4 +78,9 @@ async function analyzeContent(submission) {
   return parsed;
 }
 
-module.exports = { uploadUrlToGemini, analyzeContent };
+// Return Gemini API key for frontend upload
+function getApiKey() {
+  return config.geminiApiKey;
+}
+
+module.exports = { analyzeContent, getApiKey };

@@ -1,14 +1,19 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
-const { uploadUrlToGemini, analyzeContent } = require('../services/gemini');
+const { analyzeContent, getApiKey } = require('../services/gemini');
 
 const router = express.Router();
 
-// POST /submissions - Submit creative by URL
+// GET /submissions/gemini-key - Frontend gets key to upload directly to Gemini
+router.get('/gemini-key', authenticate, (req, res) => {
+  res.json({ key: getApiKey() });
+});
+
+// POST /submissions - Submit creative (frontend already uploaded to Gemini)
 router.post('/', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, contenido_email } = req.body;
+    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email } = req.body;
 
     if (!titulo || !negocio) {
       return res.status(400).json({ error: 'Titulo and negocio are required' });
@@ -16,32 +21,15 @@ router.post('/', authenticate, async (req, res, next) => {
 
     const finalTipo = tipo || 'video';
 
-    if (finalTipo !== 'email' && !archivo_url) {
-      return res.status(400).json({ error: 'archivo_url is required for non-email submissions' });
-    }
-
-    // Insert submission
+    // Insert submission with Gemini URI from frontend
     const result = await pool.query(`
-      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, contenido_email, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'analizando')
+      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, estado)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'analizando')
       RETURNING *
-    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, contenido_email]);
+    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, gemini_file_uri, contenido_email]);
 
     const submission = result.rows[0];
-    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo})`);
-
-    // Upload URL to Gemini if not email
-    if (finalTipo !== 'email' && archivo_url) {
-      try {
-        const geminiFile = await uploadUrlToGemini(archivo_url);
-        await pool.query('UPDATE submissions SET gemini_file_uri = $1 WHERE id = $2', [geminiFile.uri, submission.id]);
-        submission.gemini_file_uri = geminiFile.uri;
-        console.log(`[Submission] Gemini URI set: ${geminiFile.uri}`);
-      } catch (uploadErr) {
-        console.error(`[Submission] Gemini upload failed: ${uploadErr.message}`);
-        // Continue with text-only analysis
-      }
-    }
+    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), Gemini URI: ${gemini_file_uri || 'none'}`);
 
     // Analyze with AI
     try {
@@ -50,32 +38,18 @@ router.post('/', authenticate, async (req, res, next) => {
       await pool.query(`
         UPDATE submissions SET
           estado = 'evaluado',
-          ai_score = $1,
-          ai_resumen = $2,
-          ai_veredicto = $3,
-          ai_hook_presente = $4,
-          ai_hook_descripcion = $5,
-          ai_cta_presente = $6,
-          ai_cta_descripcion = $7,
-          ai_fortalezas = $8,
-          ai_problemas = $9,
-          ai_recomendaciones = $10,
-          ai_uso_recomendado = $11,
-          ai_analyzed_at = NOW(),
-          updated_at = NOW()
+          ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
+          ai_hook_presente = $4, ai_hook_descripcion = $5,
+          ai_cta_presente = $6, ai_cta_descripcion = $7,
+          ai_fortalezas = $8, ai_problemas = $9, ai_recomendaciones = $10,
+          ai_uso_recomendado = $11, ai_analyzed_at = NOW(), updated_at = NOW()
         WHERE id = $12
       `, [
-        analysis.score || 50,
-        analysis.resumen || 'Sin resumen',
-        analysis.veredicto || 'cambios',
-        analysis.hook_presente ?? analysis.hook_primeros_3s ?? null,
-        analysis.hook_descripcion || null,
-        analysis.cta_presente ?? null,
-        analysis.cta_descripcion || null,
-        JSON.stringify(analysis.fortalezas || []),
-        JSON.stringify(analysis.problemas || []),
-        JSON.stringify(analysis.recomendaciones || []),
-        analysis.uso_recomendado || null,
+        analysis.score || 50, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
+        analysis.hook_presente ?? analysis.hook_primeros_3s ?? null, analysis.hook_descripcion || null,
+        analysis.cta_presente ?? null, analysis.cta_descripcion || null,
+        JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
+        JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
         submission.id
       ]);
 
@@ -131,7 +105,7 @@ router.post('/email', authenticate, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// GET /submissions - List submissions
+// GET /submissions - List
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
@@ -150,7 +124,6 @@ router.get('/', authenticate, async (req, res, next) => {
     if (estado) { params.push(estado); query += ` AND s.estado = $${params.length}`; }
 
     query += ' ORDER BY s.created_at DESC';
-
     const result = await pool.query(query, params);
     res.json({ submissions: result.rows });
   } catch (error) { next(error); }
@@ -161,14 +134,11 @@ router.get('/stats/dashboard', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
     const stats = await pool.query(`
-      SELECT
-        COUNT(*) as total,
+      SELECT COUNT(*) as total,
         COUNT(*) FILTER (WHERE estado = 'evaluado') as pendientes_revision,
         COUNT(*) FILTER (WHERE estado = 'aprobado') as aprobados,
         COUNT(*) FILTER (WHERE estado = 'rechazado') as rechazados,
-        COUNT(*) FILTER (WHERE estado = 'cambios') as con_cambios,
-        ROUND(AVG(ai_score) FILTER (WHERE ai_score IS NOT NULL)) as score_promedio,
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as esta_semana
+        ROUND(AVG(ai_score) FILTER (WHERE ai_score IS NOT NULL)) as score_promedio
       FROM submissions
     `);
     res.json({ stats: stats.rows[0] });
