@@ -64,15 +64,13 @@ router.post('/', authenticate, upload.single('archivo'), async (req, res, next) 
     // Upload to Gemini if file exists
     let geminiFileUri = null;
     if (req.file) {
-      try {
-        const mimeType = getMimeType(req.file.originalname);
-        const geminiFile = await uploadToGemini(req.file.path, mimeType);
-        geminiFileUri = geminiFile.uri;
-        await pool.query('UPDATE submissions SET gemini_file_uri = $1 WHERE id = $2', [geminiFileUri, submission.id]);
-        submission.gemini_file_uri = geminiFileUri;
-      } catch (uploadErr) {
-        console.error('Gemini upload error:', uploadErr.message);
-      }
+      console.log(`[Upload] File received: ${req.file.originalname}, path: ${req.file.path}, size: ${req.file.size}`);
+      const mimeType = getMimeType(req.file.originalname);
+      const geminiFile = await uploadToGemini(req.file.path, mimeType);
+      geminiFileUri = geminiFile.uri;
+      await pool.query('UPDATE submissions SET gemini_file_uri = $1 WHERE id = $2', [geminiFileUri, submission.id]);
+      submission.gemini_file_uri = geminiFileUri;
+      console.log(`[Upload] Gemini URI: ${geminiFileUri}`);
     }
 
     // Analyze with AI

@@ -6,10 +6,21 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 // Upload file to Gemini
 async function uploadToGemini(filePath, mimeType) {
+  console.log(`[Gemini] Uploading file: ${filePath} (${mimeType})`);
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+
   const fileSize = fs.statSync(filePath).size;
+  console.log(`[Gemini] File size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`);
+
   const fileBuffer = fs.readFileSync(filePath);
 
-  const response = await fetch(`${GEMINI_URL}/files?key=${config.geminiApiKey}`, {
+  const uploadUrl = `${GEMINI_URL}/files?key=${config.geminiApiKey}`;
+  console.log(`[Gemini] Uploading to Gemini File API...`);
+
+  const response = await fetch(uploadUrl, {
     method: 'POST',
     headers: {
       'X-Goog-Upload-Command': 'start, upload, finalize',
@@ -21,19 +32,30 @@ async function uploadToGemini(filePath, mimeType) {
   });
 
   const data = await response.json();
-  if (!data.file) throw new Error('Failed to upload file to Gemini');
+  console.log(`[Gemini] Upload response:`, JSON.stringify(data).substring(0, 500));
+
+  if (!data.file) {
+    throw new Error(`Gemini upload failed: ${JSON.stringify(data)}`);
+  }
 
   // Wait for processing
   let file = data.file;
   let attempts = 0;
-  while (file.state === 'PROCESSING' && attempts < 30) {
-    await new Promise(r => setTimeout(r, 2000));
+  console.log(`[Gemini] File state: ${file.state}, waiting for ACTIVE...`);
+
+  while (file.state === 'PROCESSING' && attempts < 60) {
+    await new Promise(r => setTimeout(r, 3000));
     const check = await fetch(`${GEMINI_URL}/files/${file.name.split('/')[1]}?key=${config.geminiApiKey}`);
     file = await check.json();
     attempts++;
+    if (attempts % 5 === 0) console.log(`[Gemini] Still processing... attempt ${attempts}`);
   }
 
-  if (file.state !== 'ACTIVE') throw new Error('File processing failed');
+  if (file.state !== 'ACTIVE') {
+    throw new Error(`File processing failed. State: ${file.state}`);
+  }
+
+  console.log(`[Gemini] File ready: ${file.uri}`);
   return file;
 }
 
