@@ -16,7 +16,10 @@ app.use(cors({
 app.use(express.json());
 
 // Database
-const pool = new Pool(config.db);
+const pool = new Pool({
+  connectionString: config.databaseUrl,
+  ssl: false
+});
 app.set('db', pool);
 
 // Init database
