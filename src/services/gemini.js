@@ -4,7 +4,7 @@ const path = require('path');
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
-// Upload file to Gemini
+// Upload file to Gemini using streaming (low memory)
 async function uploadToGemini(filePath, mimeType) {
   console.log(`[Gemini] Uploading file: ${filePath} (${mimeType})`);
 
@@ -15,10 +15,11 @@ async function uploadToGemini(filePath, mimeType) {
   const fileSize = fs.statSync(filePath).size;
   console.log(`[Gemini] File size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`);
 
-  const fileBuffer = fs.readFileSync(filePath);
-
   const uploadUrl = `${GEMINI_URL}/files?key=${config.geminiApiKey}`;
-  console.log(`[Gemini] Uploading to Gemini File API...`);
+  console.log(`[Gemini] Uploading to Gemini File API (streaming)...`);
+
+  // Use stream instead of loading entire file in memory
+  const fileStream = fs.createReadStream(filePath);
 
   const response = await fetch(uploadUrl, {
     method: 'POST',
@@ -28,20 +29,30 @@ async function uploadToGemini(filePath, mimeType) {
       'X-Goog-Upload-Header-Content-Type': mimeType,
       'Content-Type': mimeType,
     },
-    body: fileBuffer,
+    body: fileStream,
+    duplex: 'half',
   });
 
-  const data = await response.json();
-  console.log(`[Gemini] Upload response:`, JSON.stringify(data).substring(0, 500));
+  const text = await response.text();
+  console.log(`[Gemini] Upload response status: ${response.status}`);
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.error(`[Gemini] Non-JSON response: ${text.substring(0, 300)}`);
+    throw new Error(`Gemini returned non-JSON: ${text.substring(0, 200)}`);
+  }
 
   if (!data.file) {
-    throw new Error(`Gemini upload failed: ${JSON.stringify(data)}`);
+    console.error(`[Gemini] No file in response:`, text.substring(0, 500));
+    throw new Error(`Gemini upload failed: ${text.substring(0, 200)}`);
   }
 
   // Wait for processing
   let file = data.file;
   let attempts = 0;
-  console.log(`[Gemini] File state: ${file.state}, waiting for ACTIVE...`);
+  console.log(`[Gemini] File state: ${file.state}, name: ${file.name}`);
 
   while (file.state === 'PROCESSING' && attempts < 60) {
     await new Promise(r => setTimeout(r, 3000));
