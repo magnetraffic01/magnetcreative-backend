@@ -21,16 +21,54 @@ function getSystemPrompt(tipo) {
   return schemas[tipo] || schemas.imagen;
 }
 
+// Convert Google Drive share link to direct download URL
+function convertDriveUrl(url) {
+  // Match Google Drive file links
+  const match = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (match) {
+    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+  }
+  // Already a direct link or other URL
+  return url;
+}
+
 // Download file from URL and upload to Gemini
 async function uploadUrlToGemini(fileUrl) {
-  console.log(`[Gemini] Downloading from URL: ${fileUrl}`);
+  const directUrl = convertDriveUrl(fileUrl);
+  console.log(`[Gemini] Downloading from URL: ${directUrl}`);
 
-  // Download the file
-  const downloadRes = await fetch(fileUrl);
+  // Download the file (follow redirects)
+  const downloadRes = await fetch(directUrl, { redirect: 'follow' });
   if (!downloadRes.ok) throw new Error(`Failed to download file: ${downloadRes.status}`);
 
   const contentType = downloadRes.headers.get('content-type') || 'video/mp4';
   const buffer = Buffer.from(await downloadRes.arrayBuffer());
+  const fileSize = buffer.length;
+
+  // Google Drive may return HTML for large files (virus scan warning)
+  if (contentType.includes('text/html') && fileSize < 100000) {
+    // Try confirm download for large files
+    const html = buffer.toString('utf8');
+    const confirmMatch = html.match(/confirm=([^&"]+)/);
+    if (confirmMatch) {
+      console.log(`[Gemini] Large file detected, confirming download...`);
+      const confirmUrl = `${directUrl}&confirm=${confirmMatch[1]}`;
+      const confirmRes = await fetch(confirmUrl, { redirect: 'follow' });
+      if (!confirmRes.ok) throw new Error(`Failed to confirm download: ${confirmRes.status}`);
+      const confirmBuffer = Buffer.from(await confirmRes.arrayBuffer());
+      const confirmType = confirmRes.headers.get('content-type') || 'video/mp4';
+      console.log(`[Gemini] Downloaded ${(confirmBuffer.length / 1024 / 1024).toFixed(2)} MB (${confirmType})`);
+      return await uploadBufferToGemini(confirmBuffer, confirmType);
+    }
+    throw new Error('Google Drive returned HTML instead of file. Make sure the file is shared publicly.');
+  }
+
+  console.log(`[Gemini] Downloaded ${(fileSize / 1024 / 1024).toFixed(2)} MB (${contentType})`);
+  return await uploadBufferToGemini(buffer, contentType);
+}
+
+// Upload buffer to Gemini
+async function uploadBufferToGemini(buffer, contentType) {
   const fileSize = buffer.length;
 
   console.log(`[Gemini] Downloaded ${(fileSize / 1024 / 1024).toFixed(2)} MB (${contentType})`);
