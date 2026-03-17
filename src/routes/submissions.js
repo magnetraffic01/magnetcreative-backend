@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
-const { analyzeContent, getApiKey } = require('../services/gemini');
+const { analyzeSubmission } = require('../services/ai-router');
+const { getApiKey } = require('../services/gemini');
 
 const router = express.Router();
 
@@ -31,9 +32,10 @@ router.post('/', authenticate, async (req, res, next) => {
     const submission = result.rows[0];
     console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), Gemini URI: ${gemini_file_uri || 'none'}`);
 
-    // Analyze with AI
+    // Analyze with AI (videos->Gemini, images/emails->Claude->OpenAI->Gemini)
     try {
-      const analysis = await analyzeContent(submission);
+      const { image_base64, image_mime_type } = req.body;
+      const analysis = await analyzeSubmission(submission, image_base64, image_mime_type);
 
       await pool.query(`
         UPDATE submissions SET
@@ -82,7 +84,7 @@ router.post('/email', authenticate, async (req, res, next) => {
     `, [req.user.id, titulo, negocio, descripcion, contenido_email]);
 
     const submission = result.rows[0];
-    const analysis = await analyzeContent(submission);
+    const analysis = await analyzeSubmission(submission, null, null);
 
     await pool.query(`
       UPDATE submissions SET
