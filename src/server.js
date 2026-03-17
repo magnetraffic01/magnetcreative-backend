@@ -15,9 +15,10 @@ app.use(cors({
 
 app.use(express.json());
 
-// Database
+// Database - strip sslmode from URL and disable SSL
+const dbUrl = (config.databaseUrl || '').replace(/[?&]sslmode=[^&]*/g, '');
 const pool = new Pool({
-  connectionString: config.databaseUrl,
+  connectionString: dbUrl,
   ssl: false
 });
 app.set('db', pool);
