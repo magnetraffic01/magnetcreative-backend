@@ -55,7 +55,14 @@ async function analyzeContent(submission) {
     contents = [{ role: 'user', parts: [{ text: userContext }] }];
   }
 
-  console.log(`[Gemini] Analyzing: ${submission.titulo} (${tipo}), URI: ${submission.gemini_file_uri || 'none'}`);
+  const hasFile = !!submission.gemini_file_uri && tipo !== 'email';
+  console.log(`[Gemini] Analyzing: ${submission.titulo} (${tipo}), URI: ${submission.gemini_file_uri || 'none'}, hasFile: ${hasFile}`);
+
+  // Use thinkingConfig only for text-only requests; file+thinking can cause issues
+  const generationConfig = { temperature: 0.3, maxOutputTokens: 4000 };
+  if (!hasFile) {
+    generationConfig.thinkingConfig = { thinkingBudget: 1024 };
+  }
 
   const response = await fetch(`${GEMINI_URL}/models/gemini-2.5-flash:generateContent?key=${config.geminiApiKey}`, {
     method: 'POST',
@@ -63,7 +70,7 @@ async function analyzeContent(submission) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents,
-      generationConfig: { temperature: 0.3, maxOutputTokens: 4000, thinkingConfig: { thinkingBudget: 1024 } }
+      generationConfig
     })
   });
 
