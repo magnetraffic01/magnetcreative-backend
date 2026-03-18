@@ -23,6 +23,17 @@ const pool = new Pool({
 });
 app.set('db', pool);
 
+// ActuarialAds Database (for creative_vault sync)
+if (config.actuarialDbUrl) {
+  const actuarialUrl = config.actuarialDbUrl.replace(/[?&]sslmode=[^&]*/g, '');
+  const actuarialPool = new Pool({
+    connectionString: actuarialUrl,
+    ssl: false
+  });
+  app.set('actuarialDb', actuarialPool);
+  console.log('ActuarialAds DB connected');
+}
+
 // Init database
 async function initDB() {
   try {

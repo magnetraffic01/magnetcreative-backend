@@ -27,7 +27,34 @@ router.post('/review/:id', authenticate, requireAdmin, async (req, res, next) =>
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Submission not found' });
 
-    res.json({ submission: result.rows[0] });
+    const submission = result.rows[0];
+
+    // If approved, INSERT into ActuarialAds creative_vault
+    if (decision === 'aprobado') {
+      try {
+        const actuarialDb = req.app.get('actuarialDb') || pool;
+        await actuarialDb.query(`
+          INSERT INTO creative_vault (
+            tipo, nombre, url_archivo, url_thumbnail,
+            descripcion_visual, score_actuarial, estado, notas
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'activo', $7)
+        `, [
+          submission.tipo,
+          submission.titulo,
+          submission.archivo_url || submission.gemini_file_uri,
+          submission.gemini_file_uri,
+          submission.ai_resumen,
+          submission.ai_score || 0,
+          `Aprobado en MagnetCreative #${submission.id}. Negocio: ${submission.negocio}. ${comentario || ''}`
+        ]);
+        console.log(`[ActuarialAds] Creative #${submission.id} added to creative_vault`);
+      } catch (vaultErr) {
+        // creative_vault may not exist in this DB - log but don't fail
+        console.error(`[ActuarialAds] creative_vault insert failed: ${vaultErr.message}`);
+      }
+    }
+
+    res.json({ submission });
   } catch (error) { next(error); }
 });
 
