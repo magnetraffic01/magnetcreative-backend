@@ -14,13 +14,15 @@ const NEGOCIOS = {
     redes: 'Instagram, Facebook, TikTok, WhatsApp (canal principal)'
   },
   Traduce: {
-    descripcion: 'Servicio de traduccion certificada ingles-espanol para procesos migratorios en EE.UU. Traductores certificados ATA. Traducciones aceptadas por USCIS, cortes de inmigracion y entidades legales. Sede en Orlando, FL.',
-    audiencia: 'B2C: Inmigrantes que necesitan traducir documentos para USCIS (actas de nacimiento, matrimonio, pasaportes, diplomas, records medicos). B2B: Abogados de inmigracion, paralegales, call centers legales que necesitan traducciones confiables para sus clientes.',
-    tono: 'Profesional, confiable, rapido, empatico con la situacion migratoria. "Fast, Certified, USCIS-Accepted"',
-    productos: 'Traduccion Regular (3-5 dias), Express (24-48h), Urgente (<24h), Notarizacion. Documentos: actas de nacimiento, matrimonio, divorcio, pasaportes, licencias, transcripciones academicas, diplomas, records medicos, documentos de negocios. Programa de afiliados para generar ingresos.',
-    diferenciador: 'Traductores certificados ATA, aceptado por USCIS, entregas express en 24h, descuentos por volumen, programa de afiliados (tu consigues el cliente, nosotros hacemos la traduccion), cotizador instantaneo en la web',
-    urls: 'traduce.us',
-    redes: 'Instagram, Facebook, WhatsApp'
+    descripcion: 'Servicio de traduccion certificada de documentos para procesos migratorios, legales, academicos y personales en EE.UU. Cada traduccion incluye: certificado oficial, firma del traductor certificado, declaracion jurada de precision, formato PDF profesional. 100% de traducciones aceptadas por instituciones (cero rechazos). Garantia 30 dias.',
+    audiencia: 'B2C: Comunidad hispana/latina en EE.UU. que necesita traducciones para USCIS, cortes, universidades, notarios. Documentos: actas de nacimiento/matrimonio/divorcio, pasaportes, licencias, transcripciones academicas, diplomas, records medicos. B2B: Abogados de inmigracion, paralegales, call centers legales, emprendedores que quieren generar ingresos como afiliados.',
+    tono: 'Calido, personal, tranquilizador. "Sabemos que este documento representa algo importante para ti". "Eres parte de la familia Traduce". Usa "tu" (informal). Bilingue espanol/ingles. Tagline: "Las palabras correctas, en el momento justo, marcan la diferencia."',
+    productos: 'Ingles-Espanol: Regular $13.99/pag, Express, Urgente, Mismo dia. Espanol-Ingles: 4 velocidades. Otros idiomas: 4 velocidades. Notarizacion: $35 primer doc + adicionales. Envio fisico: $25. Descuento 10% clientes recurrentes (dentro de 10 dias). Descuentos por volumen/familia.',
+    diferenciador: '100% tasa de aceptacion (cero rechazos institucionales), correcciones gratis si hay errores, garantia 30 dias sin costo extra, cumple USCIS/cortes, certificacion profesional con firma y declaracion jurada, entregas mismo dia disponible, soporte bilingue, programa de afiliados via Tracknow (15 SKUs, comisiones por referidos)',
+    proceso: '1. Cliente envia documento original. 2. Traductor certificado traduce. 3. Multiples revisiones. 4. Se emite certificado y firma. 5. Se entrega PDF estructurado (certificado -> traduccion -> original). 6. Notarizacion opcional. 7. Envio fisico opcional. 8. Soporte 30 dias post-entrega.',
+    urls: 'traduce.us, traduce.us/googlereviews',
+    contacto: 'Email: info@traduce.us, Tel: +1 (888) 378 1368, WhatsApp disponible',
+    redes: 'Instagram, Facebook, WhatsApp, Google Reviews'
   },
   MagneTraffic: {
     descripcion: 'Plataforma de generacion de leads para agentes de seguros. Leads precalificados de salud, dental, vida.',
