@@ -45,50 +45,96 @@ function getPlatformContext(plataforma) {
   return context;
 }
 
-// Route analysis to the right AI based on content type
-// Videos -> Gemini (only one that can analyze video files)
-// Everything else -> Claude (1st) -> OpenAI (2nd) -> Gemini text-only (3rd)
+// Download file from Gemini and convert to base64 for Claude/OpenAI
+async function downloadGeminiFile(geminiFileUri, geminiFileName) {
+  try {
+    // Get file metadata to find download URL
+    const name = geminiFileName || geminiFileUri.split('/').pop();
+    const metaRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/files/${name}?key=${config.geminiApiKey}`
+    );
+
+    if (!metaRes.ok) {
+      // Try using the URI directly as a download URL
+      console.log(`[Download] Metadata fetch failed, trying direct URI`);
+      return null;
+    }
+
+    const meta = await metaRes.json();
+    const downloadUri = meta.uri;
+
+    if (!downloadUri) {
+      console.log(`[Download] No download URI in metadata`);
+      return null;
+    }
+
+    // Download the actual file content
+    const fileRes = await fetch(`${downloadUri}?key=${config.geminiApiKey}`);
+    if (!fileRes.ok) {
+      console.log(`[Download] File download failed: ${fileRes.status}`);
+      return null;
+    }
+
+    const buffer = await fileRes.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    const mimeType = meta.mimeType || 'image/jpeg';
+
+    console.log(`[Download] Got file: ${Math.round(base64.length / 1024)}KB, mime: ${mimeType}`);
+    return { base64, mimeType };
+  } catch (err) {
+    console.error(`[Download] Error: ${err.message}`);
+    return null;
+  }
+}
 
 async function analyzeSubmission(submission, imageBase64, imageMimeType) {
   const tipo = submission.tipo;
   const plataforma = submission.plataforma || 'Facebook';
 
-  // Inject platform specs into submission for AI context
+  // Inject platform specs
   submission._platformContext = getPlatformContext(plataforma);
 
-  // ============ VIDEOS -> GEMINI (only AI that can see video) ============
+  // ============ VIDEOS -> GEMINI ============
   if (tipo === 'video') {
     console.log(`[AI Router] Video -> Gemini`);
     return await analyzeWithGemini(submission);
   }
 
-  // ============ NON-VIDEO: Claude -> OpenAI -> Gemini ============
+  // ============ NON-VIDEO ============
+  // If no base64 provided but we have a Gemini URI, try to download it
+  if (!imageBase64 && submission.gemini_file_uri && tipo !== 'email') {
+    console.log(`[AI Router] No base64, trying to download from Gemini...`);
+    const downloaded = await downloadGeminiFile(submission.gemini_file_uri, submission.gemini_file_name);
+    if (downloaded) {
+      imageBase64 = downloaded.base64;
+      imageMimeType = downloaded.mimeType;
+    }
+  }
 
-  // 1. Try Claude (Anthropic) - PRIMARY for images, presentations, templates, emails
+  // 1. Claude (PRIMARY)
   if (config.claudeApiKey) {
     try {
-      console.log(`[AI Router] ${tipo} -> Claude (primary)`);
+      console.log(`[AI Router] ${tipo} -> Claude (primary), hasBase64: ${!!imageBase64}`);
       return await analyzeWithClaude(submission, imageBase64, imageMimeType);
     } catch (err) {
       console.error(`[AI Router] Claude failed: ${err.message}`);
     }
   }
 
-  // 2. Try OpenAI - FALLBACK
+  // 2. OpenAI (FALLBACK)
   if (config.openaiApiKey) {
     try {
-      console.log(`[AI Router] ${tipo} -> OpenAI (fallback 1)`);
+      console.log(`[AI Router] ${tipo} -> OpenAI (fallback 1), hasBase64: ${!!imageBase64}`);
       return await analyzeWithOpenAI(submission, imageBase64, imageMimeType);
     } catch (err) {
       console.error(`[AI Router] OpenAI failed: ${err.message}`);
     }
   }
 
-  // 3. Try Gemini text-only - LAST RESORT (won't see the image but can evaluate metadata)
+  // 3. Gemini text-only (LAST RESORT)
   if (config.geminiApiKey) {
     try {
       console.log(`[AI Router] ${tipo} -> Gemini text-only (fallback 2)`);
-      // Remove gemini_file_uri for non-video to avoid "invalid argument" error
       const textOnlySubmission = { ...submission, gemini_file_uri: null };
       return await analyzeWithGemini(textOnlySubmission);
     } catch (err) {
@@ -120,7 +166,7 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
     messages = [{
       role: 'user',
       content: [
-        { type: 'image_url', image_url: { url: `data:${imageMimeType};base64,${imageBase64}` } },
+        { type: 'image_url', image_url: { url: `data:${imageMimeType || 'image/jpeg'};base64,${imageBase64}` } },
         { type: 'text', text: userText }
       ]
     }];
@@ -148,7 +194,6 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
   }
 
   const text = data.choices?.[0]?.message?.content || '';
-
   let parsed = {};
   try {
     const match = text.match(/\{[\s\S]*\}/);

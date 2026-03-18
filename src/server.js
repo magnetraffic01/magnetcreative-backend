@@ -13,7 +13,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '1mb' }));
 
 // Database - strip sslmode from URL and disable SSL
 const dbUrl = (config.databaseUrl || '').replace(/[?&]sslmode=[^&]*/g, '');
