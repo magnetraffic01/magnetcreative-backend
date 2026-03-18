@@ -36,25 +36,35 @@ const NEGOCIOS = {
     redes: 'Instagram, Facebook, WhatsApp'
   },
   FFL: {
-    descripcion: 'Final Expense / Gastos finales. Seguros de vida para gastos funerarios dirigidos a la comunidad hispana.',
-    audiencia: 'Personas mayores hispanas, familias latinas en EE.UU.',
-    tono: 'Empatico, respetuoso, familiar, sin ser morboso',
-    productos: 'Polizas de gastos finales, seguros de vida asequibles',
-    diferenciador: 'Atencion en espanol, comprension cultural del tema de la muerte en la cultura latina'
+    descripcion: 'FFL Insurance - agencia de seguros enfocada en la comunidad hispana/latina en EE.UU. Ofrece membresia dental, seguro dental PPO, seguros de salud ACA y alternativos, y seguros de gastos finales (Final Expense). Opera con agente AI "Alejandra" como primer contacto.',
+    audiencia: 'Comunidad hispana/latina en EE.UU., inmigrantes (con o sin estatus migratorio valido), personas sin SSN, sin empleo formal, sin seguro actual. Final Expense: adultos 50-85 anos.',
+    tono: 'Empatia primero - siempre validar la emocion/dolor del cliente en la primera frase. Solucion directa en 1-2 oraciones. Detalles solo si el cliente muestra interes. Espanol primero. NUNCA mencionar nombres de carriers (Careington, 1Dental) al cliente.',
+    productos: 'Membresia Dental Careington: $99/ano (~$8/mes), 75K+ dentistas, descuentos 60-82%, sin SSN, activacion 24-72h. Dental PPO: $14.99/mes, hasta $3K/ano limite, $50 deducible. Salud ACA: varia segun ingreso (puede ser $0). Planes Alternativos: sin SSN, sin verificacion credito. Final Expense: $40-60/mes por $5K-$10K cobertura, edades 50-85.',
+    diferenciador: 'Sin SSN requerido, sin verificacion de credito, sin verificacion de empleo, activacion inmediata 24-72h, cancelacion sin penalidad, planes para indocumentados, servicio bilingue espanol-first, entrada desde $99/ano.',
+    ahorros: 'Limpieza dental: $135 -> $33 (76% desc). Canal raiz molar: $1,510 -> $481 (68%). Extraccion simple: $287 -> $71 (75%). Dentadura completa: $2,559 -> $752 (71%). Corona porcelana: $1,586 -> $524 (67%). Brackets adulto: $6,401 -> $2,615 (59%). Emergencia dolor: $194 -> $44 (77%).',
+    proceso_venta: '1. Saludo -> pedir ZIP y edad. 2. Preguntar que necesita: dental, salud, o ambos. 3. Si salud: verificar seguro actual, estatus migratorio, empleo. 4. Si dental: verificar problemas, urgencia, plan actual. 5. Si ambos: empezar con salud, luego dental. Horario asesores: 10AM-8PM EST.',
+    final_expense: 'Costo promedio funeral: $10,000+. Cobertura tipica: $10K-$25K. Simplified Issue: salud favorable = primas bajas, cobertura inmediata. Guaranteed Issue: salud adversa = primas altas, 2 anos espera para muerte natural. Enfoque consultivo/educativo, empatia, abordar objeciones proactivamente.',
+    urls: 'fflinsurance.com',
+    redes: 'Instagram, Facebook, WhatsApp'
   },
   Dental: {
-    descripcion: 'Planes dentales accesibles para la comunidad hispana. Cobertura dental sin seguro medico completo.',
-    audiencia: 'Familias hispanas sin seguro dental, trabajadores independientes',
-    tono: 'Accesible, amigable, enfocado en ahorro',
-    productos: 'Planes dentales desde $19.95/mes, cobertura familiar',
-    diferenciador: 'Precio accesible, sin periodos de espera, atencion en espanol'
+    descripcion: 'Planes dentales accesibles para la comunidad hispana. Membresia de descuentos (NO seguro). Red 1Dental/Careington con 75K+ dentistas. Activacion inmediata, sin periodo de espera.',
+    audiencia: 'Familias hispanas sin seguro dental, trabajadores independientes, inmigrantes, personas sin SSN.',
+    tono: 'Accesible, amigable, enfocado en ahorro real con ejemplos numericos concretos. Empatia con el dolor dental. NUNCA mencionar nombres de carriers.',
+    productos: '1Dental Standard: $99/ano (20% desc en todo). Premium: $149/ano (20% preventivo, 30% basico/mayor). Elite: $199/ano (20% preventivo, 50% basico/mayor). Careington via TreboLife: desde $14.99/mes. Sin deducible en preventivo, $50 en mayor. Limite anual $1,500-$3,000.',
+    diferenciador: 'Activacion inmediata, sin periodo espera, sin SSN, sin verificacion credito, cancelacion sin penalidad, garantia 30 dias, 75K+ dentistas, app movil, soporte 24/7, programa referidos.',
+    ahorros: 'Limpieza: $150 -> $120 (20%). Relleno: $200 -> $140 (30%). Muela juicio: $2,200 -> $1,100 (50%). Corona porcelana: $1,600 -> $800 (50%). Ortodoncia completa: $6,000 -> $3,000 (50%). Dentadura parcial: $4,000 -> $2,000 (50%).',
+    urls: '1dental.com',
+    redes: 'Instagram, Facebook, WhatsApp'
   },
   Salud: {
-    descripcion: 'Seguros de salud ACA/Obamacare y planes complementarios para la comunidad hispana.',
-    audiencia: 'Familias hispanas, individuos sin seguro medico',
-    tono: 'Informativo, tranquilizador, profesional',
-    productos: 'Planes ACA, seguros complementarios, telemedicina',
-    diferenciador: 'Asesoria en espanol, ayuda con subsidios, proceso simplificado'
+    descripcion: 'Seguros de salud ACA/Obamacare, planes complementarios, y planes alternativos para inmigrantes sin estatus. PPO dental con vision, audicion y farmacia incluidos.',
+    audiencia: 'Familias hispanas sin seguro medico, individuos con/sin estatus migratorio, trabajadores independientes.',
+    tono: 'Informativo, tranquilizador, profesional. Enfasis en accesibilidad y que hay opciones para todos sin importar su situacion.',
+    productos: 'ACA/Obamacare: varia segun ingreso (puede ser $0 con subsidios). Requiere estatus migratorio valido. Planes Alternativos: sin SSN, sin verificacion credito, para indocumentados. PPO Dental: preventivo 100% cubierto, basico 80-90%, mayor 50%. Vision: examenes anuales cubiertos, descuentos en lentes. Audicion: evaluaciones gratis. Farmacia: descuentos en red.',
+    diferenciador: 'Planes para TODOS sin importar estatus migratorio, asesoria en espanol, ayuda con subsidios ACA, proceso simplificado, sin verificacion de empleo, herramientas digitales (portal, app, calculadoras de costos), proteccion contra facturacion sorpresa.',
+    urls: 'healthcare.gov (ACA)',
+    redes: 'Instagram, Facebook, WhatsApp'
   }
 };
 
