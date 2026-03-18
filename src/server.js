@@ -89,5 +89,8 @@ app.get('/health', (req, res) => {
 initDB().then(() => {
   app.listen(config.port, () => {
     console.log(`MagnetCreative running on port ${config.port}`);
+    console.log(`[Config] Claude key: ${config.claudeApiKey ? config.claudeApiKey.substring(0, 15) + '...' + config.claudeApiKey.slice(-6) : 'NOT SET'}`);
+    console.log(`[Config] OpenAI key: ${config.openaiApiKey ? config.openaiApiKey.substring(0, 15) + '...' + config.openaiApiKey.slice(-6) : 'NOT SET'}`);
+    console.log(`[Config] Gemini key: ${config.geminiApiKey ? config.geminiApiKey.substring(0, 10) + '...' : 'NOT SET'}`);
   });
 });
