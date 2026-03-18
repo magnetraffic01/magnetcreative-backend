@@ -44,8 +44,33 @@ async function initDB() {
       await pool.query(schema);
       console.log('Database initialized!');
     }
+    // Run migrations
+    await runMigrations();
   } catch (err) {
     console.error('DB init error:', err.message);
+  }
+}
+
+async function runMigrations() {
+  try {
+    // Migration 001: negocios + knowledge_base
+    const hasNegocios = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'negocios')`);
+    if (!hasNegocios.rows[0].exists) {
+      console.log('Running migration 001: negocios + knowledge_base...');
+      const migration = fs.readFileSync(path.join(__dirname, '..', 'database', 'migrate-001-negocios-kb.sql'), 'utf8');
+      await pool.query(migration);
+      console.log('Migration 001 complete!');
+    }
+    // Ensure knowledge_base table exists even if negocios column was already there
+    const hasKB = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'knowledge_base')`);
+    if (!hasKB.rows[0].exists) {
+      console.log('Creating knowledge_base table...');
+      const migration = fs.readFileSync(path.join(__dirname, '..', 'database', 'migrate-001-negocios-kb.sql'), 'utf8');
+      await pool.query(migration);
+      console.log('knowledge_base table created!');
+    }
+  } catch (err) {
+    console.error('Migration error:', err.message);
   }
 }
 
@@ -53,6 +78,7 @@ async function initDB() {
 app.use('/auth', require('./routes/auth'));
 app.use('/submissions', require('./routes/submissions'));
 app.use('/admin', require('./routes/admin'));
+app.use('/knowledge-base', require('./routes/knowledge-base'));
 
 // Health
 app.get('/health', (req, res) => {

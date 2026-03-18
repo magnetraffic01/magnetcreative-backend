@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(255) NOT NULL,
   role VARCHAR(20) DEFAULT 'creative' CHECK (role IN ('admin', 'creative')),
   negocio VARCHAR(50),
+  negocios JSONB DEFAULT '[]',
   created_at TIMESTAMP DEFAULT NOW(),
   last_login_at TIMESTAMP
 );
@@ -61,3 +62,18 @@ CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_estado ON submissions(estado);
 CREATE INDEX IF NOT EXISTS idx_submissions_negocio ON submissions(negocio);
 CREATE INDEX IF NOT EXISTS idx_submissions_tipo ON submissions(tipo);
+
+-- Knowledge Base (admin-managed content for AI evaluation context)
+CREATE TABLE IF NOT EXISTS knowledge_base (
+  id SERIAL PRIMARY KEY,
+  titulo VARCHAR(255) NOT NULL,
+  tipo VARCHAR(30) DEFAULT 'rules' CHECK (tipo IN ('guidelines', 'rules', 'templates', 'objectives')),
+  negocio VARCHAR(50),
+  contenido TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_tipo ON knowledge_base(tipo);
+CREATE INDEX IF NOT EXISTS idx_kb_negocio ON knowledge_base(negocio);

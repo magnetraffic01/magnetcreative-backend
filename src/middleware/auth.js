@@ -12,7 +12,7 @@ function authenticate(req, res, next) {
     const decoded = jwt.verify(token, config.jwtSecret);
     const pool = req.app.get('db');
 
-    pool.query('SELECT id, email, name, role, negocio FROM users WHERE id = $1', [decoded.userId])
+    pool.query('SELECT id, email, name, role, negocio, negocios FROM users WHERE id = $1', [decoded.userId])
       .then(result => {
         if (result.rows.length === 0) return res.status(401).json({ error: 'User not found' });
         req.user = result.rows[0];

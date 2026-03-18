@@ -34,11 +34,11 @@ router.get('/me', authenticate, (req, res) => {
   res.json({ user: req.user });
 });
 
-// POST /auth/create-user (admin only - Amed creates team members)
+// POST /auth/create-user (admin only)
 router.post('/create-user', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const { email, password, name, role, negocio } = req.body;
+    const { email, password, name, role, negocio, negocios } = req.body;
 
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password and name required' });
 
@@ -46,9 +46,11 @@ router.post('/create-user', authenticate, requireAdmin, async (req, res, next) =
     if (existing.rows.length > 0) return res.status(409).json({ error: 'Email already exists' });
 
     const hash = await bcrypt.hash(password, 10);
+    const negociosArray = negocios || (negocio ? [negocio] : []);
+
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, name, role, negocio) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, name, role, negocio',
-      [email, hash, name, role || 'creative', negocio || null]
+      'INSERT INTO users (email, password_hash, name, role, negocio, negocios) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, name, role, negocio, negocios',
+      [email, hash, name, role || 'creative', negociosArray[0] || null, JSON.stringify(negociosArray)]
     );
 
     res.status(201).json({ user: result.rows[0] });
@@ -59,8 +61,65 @@ router.post('/create-user', authenticate, requireAdmin, async (req, res, next) =
 router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const result = await pool.query('SELECT id, email, name, role, negocio, created_at, last_login_at FROM users ORDER BY created_at');
+    const result = await pool.query('SELECT id, email, name, role, negocio, negocios, created_at, last_login_at FROM users ORDER BY created_at');
     res.json({ users: result.rows });
+  } catch (error) { next(error); }
+});
+
+// PUT /auth/users/:id (admin only - edit user)
+router.put('/users/:id', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const { name, email, password, role, negocio, negocios } = req.body;
+    const userId = req.params.id;
+
+    // Check user exists
+    const existing = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    // Check email uniqueness if changed
+    if (email) {
+      const emailCheck = await pool.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, userId]);
+      if (emailCheck.rows.length > 0) return res.status(409).json({ error: 'Email ya existe' });
+    }
+
+    const negociosArray = negocios || (negocio ? [negocio] : []);
+
+    // Build update query dynamically
+    let query = 'UPDATE users SET name = $1, email = $2, role = $3, negocio = $4, negocios = $5';
+    let params = [name, email, role || 'creative', negociosArray[0] || null, JSON.stringify(negociosArray)];
+
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      query += ', password_hash = $6 WHERE id = $7';
+      params.push(hash, userId);
+    } else {
+      query += ' WHERE id = $6';
+      params.push(userId);
+    }
+
+    query += ' RETURNING id, email, name, role, negocio, negocios';
+
+    const result = await pool.query(query, params);
+    res.json({ user: result.rows[0] });
+  } catch (error) { next(error); }
+});
+
+// DELETE /auth/users/:id (admin only)
+router.delete('/users/:id', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const userId = req.params.id;
+
+    // Prevent self-deletion
+    if (String(req.user.id) === String(userId)) {
+      return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta' });
+    }
+
+    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [userId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    res.json({ success: true });
   } catch (error) { next(error); }
 });
 
