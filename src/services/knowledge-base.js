@@ -25,11 +25,15 @@ const NEGOCIOS = {
     redes: 'Instagram, Facebook, WhatsApp, Google Reviews'
   },
   MagneTraffic: {
-    descripcion: 'Plataforma de generacion de leads para agentes de seguros. Leads precalificados de salud, dental, vida.',
-    audiencia: 'Agentes de seguros hispanos en EE.UU., agencias de seguros, call centers',
-    tono: 'Directo, profesional, orientado a datos y resultados',
-    productos: 'Leads precalificados $0.99, leads inbound $7-25, Pack Starter 250 leads',
-    diferenciador: 'Leads generados especificamente para lo contratado, no listas recicladas, WhatsApp validado'
+    descripcion: 'Plataforma de generacion de leads para agentes de seguros hispanos en EE.UU. Usa sistema actuarial de IA (no marketing tradicional) para optimizar campanas de Meta Ads. Sede en Orlando, FL. Opera con logica de seguros: Loss Ratio, Factor de Credibilidad Z, Tablas de Supervivencia de ads.',
+    audiencia: 'Agentes de seguros hispanos en EE.UU., agencias de seguros, call centers de salud/dental/vida. Segmentos: agentes individuales, agencias (multiples agentes), mayoristas (multiples agencias).',
+    tono: 'Directo, profesional, orientado a datos y resultados. Sin exageraciones. Honesto sobre lo que funciona y lo que no. "No son listas recicladas, son leads generados especificamente para lo que contratas."',
+    productos: 'Leads Generados $0.99/lead: Salud/Dental, Excel/CSV, WhatsApp validado, opt-in, minimo 250. Leads Inbound: Dental $7, Salud $15, Vida $25, minimo 30. Pack Starter: 250 leads por $247, entrega mismo dia.',
+    diferenciador: 'Leads generados especificamente para lo contratado (no listas publicas/recicladas/compartidas). WhatsApp validado. Opt-in verificado. Entrega mismo dia. Sistema actuarial de IA que optimiza CPL automaticamente. Umbrales CPL: Traduce $6, MagneTraffic/FFL/Dental $8, TreboLife $3.',
+    objeciones: 'Opt-in: 100% por iniciativa del usuario. Leads frios: llenaron formulario pidiendo info. Listas compartidas: no, son exclusivas. Miedo/estafas: pago seguro via Stripe. Menos de 250: minimo para estadisticas reales de cierre. No contestan: son personas reales con WhatsApp real, la rapidez de contacto es clave.',
+    urls: 'magnetraffic.com, magnetai.com',
+    contacto: 'Tel: +1-863-800-0163, Email: info@magnetraffic.com',
+    redes: 'Instagram, Facebook, WhatsApp'
   },
   FFL: {
     descripcion: 'Final Expense / Gastos finales. Seguros de vida para gastos funerarios dirigidos a la comunidad hispana.',
