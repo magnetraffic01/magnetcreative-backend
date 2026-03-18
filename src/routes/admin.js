@@ -98,7 +98,10 @@ router.get('/stats', authenticate, requireAdmin, async (req, res, next) => {
     const byUser = await pool.query(`
       SELECT u.name, COUNT(*) as total,
         ROUND(AVG(s.ai_score) FILTER (WHERE s.ai_score IS NOT NULL)) as score_promedio,
-        COUNT(*) FILTER (WHERE s.estado = 'aprobado') as aprobados
+        COUNT(*) FILTER (WHERE s.estado = 'aprobado') as aprobados,
+        COUNT(*) FILTER (WHERE s.estado = 'rechazado') as rechazados,
+        COUNT(*) FILTER (WHERE s.estado = 'cambios') as con_cambios,
+        COUNT(*) FILTER (WHERE s.estado = 'evaluado') as pendientes
       FROM submissions s JOIN users u ON s.user_id = u.id
       GROUP BY u.name ORDER BY total DESC
     `);
