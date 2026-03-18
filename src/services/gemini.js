@@ -68,13 +68,26 @@ async function analyzeContent(submission) {
   });
 
   const data = await response.json();
+
+  if (data.error) {
+    console.error(`[Gemini] API Error:`, JSON.stringify(data.error).substring(0, 500));
+    throw new Error(`Gemini API error: ${data.error.message || JSON.stringify(data.error)}`);
+  }
+
   const text = data.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
+  console.log(`[Gemini] Response text length: ${text.length}`);
+
+  if (!text) {
+    console.error(`[Gemini] Empty response. Full data:`, JSON.stringify(data).substring(0, 1000));
+    throw new Error('Gemini returned empty response');
+  }
 
   let parsed = {};
   try {
     const match = text.match(/\{[\s\S]*\}/);
     if (match) parsed = JSON.parse(match[0]);
-  } catch {
+  } catch (parseErr) {
+    console.error(`[Gemini] Parse error: ${parseErr.message}. Text: ${text.substring(0, 300)}`);
     parsed = { score: 50, resumen: text.substring(0, 500), fortalezas: [], problemas: ['Error parsing AI response'], recomendaciones: [], veredicto: 'cambios' };
   }
 

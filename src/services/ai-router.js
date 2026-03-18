@@ -15,11 +15,18 @@ async function analyzeSubmission(submission, imageBase64, imageMimeType) {
     return await analyzeWithGemini(submission);
   }
 
-  // For images, emails, presentations, plantillas: try Claude first
+  // If file is already uploaded to Gemini (has URI) and no base64 provided,
+  // use Gemini directly since it already has the file
+  if (submission.gemini_file_uri && !imageBase64 && tipo !== 'email') {
+    console.log(`[AI Router] ${tipo} -> Gemini (file already uploaded, no base64)`);
+    return await analyzeWithGemini(submission);
+  }
+
+  // For images with base64, emails, etc: try Claude first
   // Fallback: OpenAI -> Gemini
 
   // 1. Try Claude (Anthropic)
-  if (config.claudeApiKey) {
+  if (config.claudeApiKey && (imageBase64 || tipo === 'email')) {
     try {
       console.log(`[AI Router] ${tipo} -> Claude (primary)`);
       return await analyzeWithClaude(submission, imageBase64, imageMimeType);
