@@ -1,4 +1,5 @@
 const config = require('../config');
+const { buildKnowledgeContext } = require('./knowledge-base');
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -26,8 +27,11 @@ async function analyzeContent(submission) {
   const tipo = submission.tipo;
   const systemPrompt = getSystemPrompt(tipo);
 
+  const knowledgeContext = buildKnowledgeContext(submission);
+
   let userContext = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n- Formato: ${submission.formato || 'No especificado'}\n`;
   if (submission.descripcion) userContext += `- Descripcion: ${submission.descripcion}\n`;
+  userContext += knowledgeContext;
   userContext += '\nEvalua este creativo y genera tu evaluacion completa.';
 
   let contents;
