@@ -30,7 +30,8 @@ async function analyzeWithClaude(submission, imageBase64, imageMimeType) {
   let userText = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n- Formato: ${submission.formato || 'No especificado'}\n`;
   if (submission.descripcion) userText += `- Descripcion: ${submission.descripcion}\n`;
   userText += knowledgeContext;
-  userText += '\nEvalua este creativo y genera tu evaluacion completa.';
+  if (submission._platformContext) userText += submission._platformContext;
+  userText += '\nEvalua este creativo y genera tu evaluacion completa. Verifica que las dimensiones y formato sean correctos para la plataforma destino.';
 
   let content;
 

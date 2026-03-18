@@ -32,7 +32,8 @@ async function analyzeContent(submission) {
   let userContext = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n- Formato: ${submission.formato || 'No especificado'}\n`;
   if (submission.descripcion) userContext += `- Descripcion: ${submission.descripcion}\n`;
   userContext += knowledgeContext;
-  userContext += '\nEvalua este creativo y genera tu evaluacion completa.';
+  if (submission._platformContext) userContext += submission._platformContext;
+  userContext += '\nEvalua este creativo y genera tu evaluacion completa. Verifica dimensiones y formato para la plataforma.';
 
   let contents;
 
