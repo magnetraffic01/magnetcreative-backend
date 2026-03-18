@@ -3,13 +3,15 @@
 
 const NEGOCIOS = {
   TrebolLife: {
-    descripcion: 'Grupo empresarial con sede en Orlando, FL. Comercializa planes de salud y dental accesibles (ahorro hasta 80%) a traves de una red de distribuidores independientes. Modelo de venta directa con afiliados que ganan comisiones. Tambien incluye panaderia funcional y nutricion saludable.',
-    audiencia: 'Comunidad hispana/latina en EE.UU. sin seguro medico o con seguros limitados. Tambien personas que buscan ingresos extra como distribuidores independientes.',
-    tono: 'Cercano, empoderador, profesional, familiar, orientado a resultados y comunidad.',
-    productos: 'Trebol Health Plus (plan medico), Trebol Dental (plan dental desde $19.95/mes), Trebol Safe (plan de proteccion), Trebol Vision, Telemedicina 24/7, Kit de inicio para distribuidores, Panaderia funcional',
-    diferenciador: 'Planes accesibles sin periodos de espera, atencion en espanol, modelo de negocio desde casa sin licencia de seguros, red de distribuidores con comisiones recurrentes, soporte y entrenamiento continuo',
-    urls: 'trebolife.com',
-    redes: 'Instagram, Facebook, TikTok, WhatsApp (canal principal de distribucion)'
+    descripcion: 'Membresia de descuentos de salud (NO es seguro). Operado por FFL Insurance LLC / MagneTraffic. Administrado por Careington International Corporation (45+ anos, 30M+ miembros). Disponible en 47 estados (excepto Vermont, Washington, Utah). Activacion inmediata, sin periodo de espera, sin SSN, sin contrato.',
+    audiencia: 'Comunidad hispana/latina en EE.UU. Segmentos: Familia joven (25-35) -> Safe $24.99. Profesional sin seguro (35-50) -> Health Plus $29.99. Adulto mayor (50+) -> Health Plus. Estudiante (18-25) -> Dental $14.99. Tambien distribuidores independientes que buscan ingresos extra.',
+    tono: 'Cercano, empoderador, profesional, familiar. StoryBrand: el CLIENTE es el heroe, TreboLife es el GUIA. Emocion primero, datos despues. NUNCA decir "seguro" o "insurance" o "cobertura medica" - SIEMPRE decir "membresia de descuentos de salud".',
+    productos: 'Trebol Dental ($14.99/mes ind, $29.99 familia): dental Careington +100K dentistas, Vision VSP +40K, Farmacia GetMoreRx hasta 95% desc. Trebol Safe ($24.99/mes ind, $39.99 familia, MAS POPULAR): todo Dental + DialCare telemedicina 24/7 $0/consulta ilimitada + DirectLabs +3000 labs 10-80% desc. Trebol Health Plus ($29.99/mes ind, $44.99 familia): todo Safe + medico primario virtual para condiciones cronicas. Todos: $30 activacion, garantia 30 dias, familia hasta 7 personas.',
+    diferenciador: 'Sin SSN requerido, activacion inmediata, sin periodo de espera, sin restriccion condiciones preexistentes, sin verificacion credito, familia incluida, servicio en espanol, telemedicina 24/7/365, respaldado por Careington (45+ anos). Ahorro: dental $300-800/ano, telemedicina vs ER $65 vs $400+, labs 10-80%, medicinas genericas hasta 95%.',
+    visual: 'Colores: verde oscuro #1A6E3E (fondos hero, CTA), verde medio #2D9E5F (iconos), verde claro #E8F5EE, crema #FFFCF5, dorado #D4A017 (badges Best Value). Imagenes: estilo 3D Pixar/Disney, personajes hispanos (piel morena/oliva, pelo oscuro), escenas domesticas y emocionales, iluminacion calida. PROHIBIDO: familias no-hispanas, fondos blancos de estudio, logos de seguros, azul/rojo dominante.',
+    storybrand: 'Headlines aprobados: Dental="Cuanto tiempo llevas aguantando ese dolor de muela porque crees que no puedes pagarlo?" Safe="Son las 2AM. Tu hijo tiene fiebre de 103. A donde vas?" Health Plus="Tienes diabetes, hipertension o colesterol. Necesitas un medico que te conozca." Vision="Tu hijo reprueba. No es que no estudia - es que no puede ver el pizarron." Estructura brochure: 13 slides obligatorias (Hero crisis -> Problema 3 niveles -> Servicios -> Beneficio clave -> Farmacia/Diabetes -> Vision/Labs -> Dental ahorro -> 7 personas 1 precio -> Vida transformada 4 antes/despues -> Precios con ancla -> Sin barreras -> 3 pasos sin friccion -> CTA final + disclaimer legal).',
+    urls: 'trebolife.com, trebolife.telemedsimplified.com (activacion)',
+    redes: 'Instagram, Facebook, TikTok, WhatsApp (canal principal)'
   },
   Traduce: {
     descripcion: 'Servicio de traduccion certificada ingles-espanol para procesos migratorios en EE.UU. Traductores certificados ATA. Traducciones aceptadas por USCIS, cortes de inmigracion y entidades legales. Sede en Orlando, FL.',
