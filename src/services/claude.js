@@ -76,17 +76,25 @@ async function analyzeWithClaude(submission, imageBase64, imageMimeType) {
   });
 
   const data = await response.json();
+
+  if (data.error) {
+    console.error(`[Claude] API Error:`, JSON.stringify(data.error).substring(0, 500));
+    throw new Error(`Claude API error: ${data.error.message || JSON.stringify(data.error)}`);
+  }
+
   const text = data.content?.[0]?.text || '';
+  console.log(`[Claude] Response length: ${text.length}, first 200: ${text.substring(0, 200)}`);
 
   let parsed = {};
   try {
     const match = text.match(/\{[\s\S]*\}/);
     if (match) parsed = JSON.parse(match[0]);
-  } catch {
+  } catch (parseErr) {
+    console.error(`[Claude] Parse error: ${parseErr.message}`);
     parsed = { score: 50, resumen: text.substring(0, 500), fortalezas: [], problemas: ['Error parsing AI response'], recomendaciones: [], veredicto: 'cambios' };
   }
 
-  console.log(`[Claude] Result: score=${parsed.score}, veredicto=${parsed.veredicto}`);
+  console.log(`[Claude] Result: score=${parsed.score}, veredicto=${parsed.veredicto}, fortalezas=${(parsed.fortalezas || []).length}, problemas=${(parsed.problemas || []).length}`);
   return parsed;
 }
 
