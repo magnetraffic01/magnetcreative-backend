@@ -45,47 +45,11 @@ function getPlatformContext(plataforma) {
   return context;
 }
 
-// Download file from Gemini and convert to base64 for Claude/OpenAI
-async function downloadGeminiFile(geminiFileUri, geminiFileName) {
-  try {
-    // Get file metadata to find download URL
-    const name = geminiFileName || geminiFileUri.split('/').pop();
-    const metaRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/files/${name}?key=${config.geminiApiKey}`
-    );
-
-    if (!metaRes.ok) {
-      // Try using the URI directly as a download URL
-      console.log(`[Download] Metadata fetch failed, trying direct URI`);
-      return null;
-    }
-
-    const meta = await metaRes.json();
-    const downloadUri = meta.uri;
-
-    if (!downloadUri) {
-      console.log(`[Download] No download URI in metadata`);
-      return null;
-    }
-
-    // Download the actual file content
-    const fileRes = await fetch(`${downloadUri}?key=${config.geminiApiKey}`);
-    if (!fileRes.ok) {
-      console.log(`[Download] File download failed: ${fileRes.status}`);
-      return null;
-    }
-
-    const buffer = await fileRes.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
-    const mimeType = meta.mimeType || 'image/jpeg';
-
-    console.log(`[Download] Got file: ${Math.round(base64.length / 1024)}KB, mime: ${mimeType}`);
-    return { base64, mimeType };
-  } catch (err) {
-    console.error(`[Download] Error: ${err.message}`);
-    return null;
-  }
-}
+// Route analysis to the right AI:
+// - Videos -> Gemini (only AI that can see video files via URI)
+// - Images/Presentations/Plantillas with gemini_file_uri -> Gemini (file already uploaded there)
+// - Images with base64 (no URI) -> Claude -> OpenAI
+// - Emails (text only) -> Claude -> OpenAI -> Gemini
 
 async function analyzeSubmission(submission, imageBase64, imageMimeType) {
   const tipo = submission.tipo;
@@ -94,51 +58,62 @@ async function analyzeSubmission(submission, imageBase64, imageMimeType) {
   // Inject platform specs
   submission._platformContext = getPlatformContext(plataforma);
 
-  // ============ VIDEOS -> GEMINI ============
-  if (tipo === 'video') {
-    console.log(`[AI Router] Video -> Gemini`);
-    return await analyzeWithGemini(submission);
-  }
-
-  // ============ NON-VIDEO ============
-  // If no base64 provided but we have a Gemini URI, try to download it
-  if (!imageBase64 && submission.gemini_file_uri && tipo !== 'email') {
-    console.log(`[AI Router] No base64, trying to download from Gemini...`);
-    const downloaded = await downloadGeminiFile(submission.gemini_file_uri, submission.gemini_file_name);
-    if (downloaded) {
-      imageBase64 = downloaded.base64;
-      imageMimeType = downloaded.mimeType;
+  // ============ FILES ALREADY IN GEMINI (video, image, pdf) -> USE GEMINI ============
+  if (submission.gemini_file_uri && tipo !== 'email') {
+    console.log(`[AI Router] ${tipo} -> Gemini (file already uploaded, URI: ${submission.gemini_file_uri})`);
+    try {
+      return await analyzeWithGemini(submission);
+    } catch (err) {
+      console.error(`[AI Router] Gemini with file failed: ${err.message}`);
+      // If Gemini fails with file, try text-only as fallback
+      console.log(`[AI Router] ${tipo} -> Gemini text-only fallback`);
+      try {
+        const textOnlySub = { ...submission, gemini_file_uri: null };
+        return await analyzeWithGemini(textOnlySub);
+      } catch (err2) {
+        console.error(`[AI Router] Gemini text-only also failed: ${err2.message}`);
+      }
     }
   }
 
-  // 1. Claude (PRIMARY)
-  if (config.claudeApiKey) {
+  // ============ IMAGES WITH BASE64 (no Gemini URI) -> CLAUDE ============
+  if (imageBase64 && config.claudeApiKey) {
     try {
-      console.log(`[AI Router] ${tipo} -> Claude (primary), hasBase64: ${!!imageBase64}`);
+      console.log(`[AI Router] ${tipo} -> Claude (has base64)`);
       return await analyzeWithClaude(submission, imageBase64, imageMimeType);
     } catch (err) {
       console.error(`[AI Router] Claude failed: ${err.message}`);
     }
   }
 
-  // 2. OpenAI (FALLBACK)
-  if (config.openaiApiKey) {
-    try {
-      console.log(`[AI Router] ${tipo} -> OpenAI (fallback 1), hasBase64: ${!!imageBase64}`);
-      return await analyzeWithOpenAI(submission, imageBase64, imageMimeType);
-    } catch (err) {
-      console.error(`[AI Router] OpenAI failed: ${err.message}`);
+  // ============ EMAILS -> CLAUDE -> OPENAI -> GEMINI ============
+  if (tipo === 'email') {
+    if (config.claudeApiKey) {
+      try {
+        console.log(`[AI Router] email -> Claude`);
+        return await analyzeWithClaude(submission, null, null);
+      } catch (err) {
+        console.error(`[AI Router] Claude email failed: ${err.message}`);
+      }
+    }
+    if (config.openaiApiKey) {
+      try {
+        console.log(`[AI Router] email -> OpenAI`);
+        return await analyzeWithOpenAI(submission, null, null);
+      } catch (err) {
+        console.error(`[AI Router] OpenAI email failed: ${err.message}`);
+      }
     }
   }
 
-  // 3. Gemini text-only (LAST RESORT)
+  // ============ LAST RESORT: GEMINI TEXT-ONLY ============
   if (config.geminiApiKey) {
     try {
-      console.log(`[AI Router] ${tipo} -> Gemini text-only (fallback 2)`);
-      const textOnlySubmission = { ...submission, gemini_file_uri: null };
-      return await analyzeWithGemini(textOnlySubmission);
+      console.log(`[AI Router] ${tipo} -> Gemini text-only (last resort)`);
+      const textOnlySub = { ...submission, gemini_file_uri: null };
+      return await analyzeWithGemini(textOnlySub);
     } catch (err) {
-      console.error(`[AI Router] Gemini failed: ${err.message}`);
+      console.error(`[AI Router] Gemini text-only failed: ${err.message}`);
     }
   }
 
@@ -189,9 +164,7 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
   });
 
   const data = await response.json();
-  if (data.error) {
-    throw new Error(`OpenAI error: ${data.error.message || JSON.stringify(data.error)}`);
-  }
+  if (data.error) throw new Error(`OpenAI error: ${data.error.message || JSON.stringify(data.error)}`);
 
   const text = data.choices?.[0]?.message?.content || '';
   let parsed = {};
@@ -208,14 +181,12 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
 
 function getOpenAISystemPrompt(tipo) {
   const base = 'Eres el Director Creativo de MagnetCreative. Evaluas contenido creativo para campanas digitales. Responde SOLO con JSON valido sin markdown.';
-
   const schemas = {
-    imagen: `${base}\nEvalua dimensiones, formato, y cumplimiento de specs de plataforma.\nJSON: {"score":0-100,"resumen":"2 oraciones","texto_legible":true/false,"dimensiones_correctas":true/false,"cta_presente":true/false,"cta_descripcion":"string","fortalezas":["lista"],"problemas":["lista"],"recomendaciones":[{"area":"string","detalle":"string","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar","uso_recomendado":"feed|stories|reels|todos"}`,
+    imagen: `${base}\nJSON: {"score":0-100,"resumen":"2 oraciones","texto_legible":true/false,"dimensiones_correctas":true/false,"cta_presente":true/false,"cta_descripcion":"string","fortalezas":["lista"],"problemas":["lista"],"recomendaciones":[{"area":"string","detalle":"string","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar","uso_recomendado":"feed|stories|reels|todos"}`,
     email: `${base}\nJSON: {"score":0-100,"resumen":"2 oraciones","asunto_efectivo":true/false,"cta_presente":true/false,"cta_descripcion":"string","fortalezas":["lista"],"problemas":["lista"],"recomendaciones":[{"area":"string","detalle":"string","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar"}`,
     presentacion: `${base}\nJSON: {"score":0-100,"resumen":"2 oraciones","primer_slide_impacto":true/false,"cta_presente":true/false,"fortalezas":["lista"],"problemas":["lista"],"recomendaciones":[{"area":"string","detalle":"string","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar"}`,
     plantilla: `${base}\nJSON: {"score":0-100,"resumen":"2 oraciones","texto_legible":true/false,"dimensiones_correctas":true/false,"cta_presente":true/false,"fortalezas":["lista"],"problemas":["lista"],"recomendaciones":[{"area":"string","detalle":"string","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar"}`
   };
-
   return schemas[tipo] || schemas.imagen;
 }
 

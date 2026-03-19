@@ -57,15 +57,16 @@ async function analyzeContent(submission) {
   }
 
   const hasFile = !!submission.gemini_file_uri && tipo !== 'email';
-  console.log(`[Gemini] Analyzing: ${submission.titulo} (${tipo}), URI: ${submission.gemini_file_uri || 'none'}, hasFile: ${hasFile}`);
+  // Use gemini-2.0-flash for file analysis (more stable), 2.5-flash for text-only
+  const model = hasFile ? 'gemini-2.0-flash' : 'gemini-2.5-flash';
+  console.log(`[Gemini] Analyzing: ${submission.titulo} (${tipo}), model: ${model}, URI: ${submission.gemini_file_uri || 'none'}`);
 
-  // Use thinkingConfig only for text-only requests; file+thinking can cause issues
   const generationConfig = { temperature: 0.3, maxOutputTokens: 4000 };
   if (!hasFile) {
     generationConfig.thinkingConfig = { thinkingBudget: 1024 };
   }
 
-  const response = await fetch(`${GEMINI_URL}/models/gemini-2.5-flash:generateContent?key=${config.geminiApiKey}`, {
+  const response = await fetch(`${GEMINI_URL}/models/${model}:generateContent?key=${config.geminiApiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
