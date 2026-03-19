@@ -52,6 +52,9 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 
     console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), hasFile: ${!!imageBase64}, objetivo: ${objetivo || 'none'}`);
 
+    // Attach db pool for knowledge base queries
+    submission._dbPool = pool;
+
     // Analyze with AI
     try {
       const analysis = await analyzeSubmission(submission, imageBase64, imageMimeType);
@@ -105,7 +108,8 @@ router.post('/', authenticate, async (req, res, next) => {
     `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, gemini_file_uri, contenido_email]);
 
     const submission = result.rows[0];
-    submission.objetivo = objetivo; // Pass to AI context
+    submission.objetivo = objetivo;
+    submission._dbPool = pool;
     console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), objetivo: ${objetivo || 'none'}, Gemini URI: ${gemini_file_uri || 'none'}`);
 
     try {

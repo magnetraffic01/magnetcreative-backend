@@ -27,7 +27,7 @@ async function analyzeContent(submission) {
   const tipo = submission.tipo;
   const systemPrompt = getSystemPrompt(tipo);
 
-  const knowledgeContext = buildKnowledgeContext(submission);
+  const knowledgeContext = await buildKnowledgeContext(submission, submission._dbPool);
 
   let userContext = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n- Formato: ${submission.formato || 'No especificado'}\n`;
   if (submission.descripcion) userContext += `- Descripcion: ${submission.descripcion}\n`;

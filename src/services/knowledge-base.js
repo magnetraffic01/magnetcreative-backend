@@ -313,7 +313,8 @@ RUBRICA DE EVALUACION DE PRESENTACIONES (100 PUNTOS):
 `;
 
 // Build context for AI based on submission
-function buildKnowledgeContext(submission) {
+// Can receive db pool to also load entries from knowledge_base table
+async function buildKnowledgeContext(submission, pool) {
   const negocio = NEGOCIOS[submission.negocio] || NEGOCIOS['TrebolLife'];
   const negocioName = submission.negocio || 'TrebolLife';
   const objetivo = submission.objetivo;
@@ -359,8 +360,29 @@ function buildKnowledgeContext(submission) {
     context += `\n${CRITERIOS_POR_OBJETIVO[objetivo]}\n`;
   }
 
+  // Load admin-created KB entries from database
+  if (pool) {
+    try {
+      const kbResult = await pool.query(
+        `SELECT titulo, tipo, contenido FROM knowledge_base
+         WHERE negocio IS NULL OR negocio = '' OR negocio = $1
+         ORDER BY updated_at DESC`,
+        [negocioName]
+      );
+      if (kbResult.rows.length > 0) {
+        context += `\n\nREGLAS ADICIONALES DEL ADMIN (Base de Conocimiento):\n`;
+        for (const entry of kbResult.rows) {
+          context += `\n[${entry.titulo}] (${entry.tipo}):\n${entry.contenido}\n`;
+        }
+      }
+    } catch (err) {
+      console.error(`[KB] Error loading from database: ${err.message}`);
+    }
+  }
+
   context += `\nINSTRUCCIONES FINALES:`;
   context += `\n- Evalua usando LA RUBRICA DEL TIPO (${tipo}) Y LOS CRITERIOS DEL OBJETIVO (${objetivo || 'general'}).`;
+  context += `\n- Aplica TODAS las reglas adicionales del admin que aparecen arriba.`;
   context += `\n- Cada fortaleza y problema debe ser ESPECIFICO al creativo, no generico.`;
   context += `\n- Cada recomendacion debe incluir QUE cambiar y COMO cambiarlo concretamente.`;
   context += `\n- Verifica que el creativo respete el tono, la audiencia y las reglas visuales del negocio ${negocioName}.`;
