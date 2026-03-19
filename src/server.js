@@ -69,6 +69,14 @@ async function runMigrations() {
       await pool.query(migration);
       console.log('knowledge_base table created!');
     }
+    // Migration 002: chat_messages
+    const hasChat = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'chat_messages')`);
+    if (!hasChat.rows[0].exists) {
+      console.log('Running migration 002: chat_messages...');
+      const migration = fs.readFileSync(path.join(__dirname, '..', 'database', 'migrate-002-chat.sql'), 'utf8');
+      await pool.query(migration);
+      console.log('Migration 002 complete!');
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }
@@ -77,6 +85,7 @@ async function runMigrations() {
 // Routes
 app.use('/auth', require('./routes/auth'));
 app.use('/submissions', require('./routes/submissions'));
+app.use('/submissions', require('./routes/chat'));
 app.use('/admin', require('./routes/admin'));
 app.use('/knowledge-base', require('./routes/knowledge-base'));
 
