@@ -80,8 +80,12 @@ async function analyzeContent(submission) {
     throw new Error(`Gemini API error: ${data.error.message || JSON.stringify(data.error)}`);
   }
 
-  const text = data.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
-  console.log(`[Gemini] Response text length: ${text.length}`);
+  // Extract text from all parts (skip thought parts from thinking mode)
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const allText = parts.filter(p => p.text && !p.thought).map(p => p.text).join('\n');
+  // Fallback: if no non-thought parts, try any text part
+  const text = allText || parts.filter(p => p.text).map(p => p.text).join('\n') || '';
+  console.log(`[Gemini] Response parts: ${parts.length}, text length: ${text.length}, first 300: ${text.substring(0, 300)}`);
 
   if (!text) {
     console.error(`[Gemini] Empty response. Full data:`, JSON.stringify(data).substring(0, 1000));
@@ -90,14 +94,21 @@ async function analyzeContent(submission) {
 
   let parsed = {};
   try {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) parsed = JSON.parse(match[0]);
+    // Try to find JSON object in text (may be wrapped in ```json ... ```)
+    const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      parsed = JSON.parse(match[0]);
+    } else {
+      console.error(`[Gemini] No JSON found in response: ${text.substring(0, 500)}`);
+      parsed = { score: 50, resumen: text.substring(0, 500), fortalezas: [], problemas: ['La IA no genero formato JSON valido'], recomendaciones: [], veredicto: 'cambios' };
+    }
   } catch (parseErr) {
-    console.error(`[Gemini] Parse error: ${parseErr.message}. Text: ${text.substring(0, 300)}`);
+    console.error(`[Gemini] Parse error: ${parseErr.message}. Text: ${text.substring(0, 500)}`);
     parsed = { score: 50, resumen: text.substring(0, 500), fortalezas: [], problemas: ['Error parsing AI response'], recomendaciones: [], veredicto: 'cambios' };
   }
 
-  console.log(`[Gemini] Result: score=${parsed.score}, veredicto=${parsed.veredicto}`);
+  console.log(`[Gemini] Result: score=${parsed.score}, veredicto=${parsed.veredicto}, fortalezas=${(parsed.fortalezas||[]).length}, problemas=${(parsed.problemas||[]).length}`);
   return parsed;
 }
 
