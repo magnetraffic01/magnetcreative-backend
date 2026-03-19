@@ -149,7 +149,7 @@ router.post('/', authenticate, async (req, res, next) => {
 router.post('/email', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const { titulo, negocio, contenido_email, descripcion } = req.body;
+    const { titulo, negocio, contenido_email, descripcion, objetivo } = req.body;
 
     if (!titulo || !negocio || !contenido_email) {
       return res.status(400).json({ error: 'Titulo, negocio and contenido_email are required' });
@@ -162,6 +162,9 @@ router.post('/email', authenticate, async (req, res, next) => {
     `, [req.user.id, titulo, negocio, descripcion, contenido_email]);
 
     const submission = result.rows[0];
+    submission.objetivo = objetivo;
+    submission._dbPool = pool;
+    console.log(`[Submission] Created email #${submission.id}: ${titulo}, objetivo: ${objetivo || 'none'}`);
     const analysis = await analyzeSubmission(submission, null, null);
 
     await pool.query(`

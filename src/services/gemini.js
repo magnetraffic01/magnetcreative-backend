@@ -1,5 +1,6 @@
 const config = require('../config');
 const { buildKnowledgeContext } = require('./knowledge-base');
+const { parseAIResponse } = require('./parse-ai-response');
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -92,21 +93,7 @@ async function analyzeContent(submission) {
     throw new Error('Gemini returned empty response');
   }
 
-  let parsed = {};
-  try {
-    // Try to find JSON object in text (may be wrapped in ```json ... ```)
-    const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) {
-      parsed = JSON.parse(match[0]);
-    } else {
-      console.error(`[Gemini] No JSON found in response: ${text.substring(0, 500)}`);
-      parsed = { score: 50, resumen: text.substring(0, 500), fortalezas: [], problemas: ['La IA no genero formato JSON valido'], recomendaciones: [], veredicto: 'cambios' };
-    }
-  } catch (parseErr) {
-    console.error(`[Gemini] Parse error: ${parseErr.message}. Text: ${text.substring(0, 500)}`);
-    parsed = { score: 50, resumen: text.substring(0, 500), fortalezas: [], problemas: ['Error parsing AI response'], recomendaciones: [], veredicto: 'cambios' };
-  }
+  const parsed = parseAIResponse(text, 'Gemini');
 
   console.log(`[Gemini] Result: score=${parsed.score}, veredicto=${parsed.veredicto}, fortalezas=${(parsed.fortalezas||[]).length}, problemas=${(parsed.problemas||[]).length}`);
   return parsed;

@@ -1,6 +1,7 @@
 const config = require('../config');
 const { analyzeWithClaude } = require('./claude');
 const { analyzeContent: analyzeWithGemini } = require('./gemini');
+const { parseAIResponse } = require('./parse-ai-response');
 
 const PLATFORM_SPECS = {
   Facebook: {
@@ -152,9 +153,7 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
   const data = await response.json();
   if (data.error) throw new Error(`OpenAI: ${data.error.message}`);
   const text = data.choices?.[0]?.message?.content || '';
-  let parsed = {};
-  try { const m = text.match(/\{[\s\S]*\}/); if (m) parsed = JSON.parse(m[0]); }
-  catch { parsed = { score: 50, resumen: text.substring(0, 500), fortalezas: [], problemas: ['Error parsing'], recomendaciones: [], veredicto: 'cambios' }; }
+  const parsed = parseAIResponse(text, 'OpenAI');
   console.log(`[OpenAI] score=${parsed.score}, veredicto=${parsed.veredicto}`);
   return parsed;
 }

@@ -1,5 +1,6 @@
 const config = require('../config');
 const { buildKnowledgeContext } = require('./knowledge-base');
+const { parseAIResponse } = require('./parse-ai-response');
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 
@@ -85,14 +86,7 @@ async function analyzeWithClaude(submission, imageBase64, imageMimeType) {
   const text = data.content?.[0]?.text || '';
   console.log(`[Claude] Response length: ${text.length}, first 200: ${text.substring(0, 200)}`);
 
-  let parsed = {};
-  try {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) parsed = JSON.parse(match[0]);
-  } catch (parseErr) {
-    console.error(`[Claude] Parse error: ${parseErr.message}`);
-    parsed = { score: 50, resumen: text.substring(0, 500), fortalezas: [], problemas: ['Error parsing AI response'], recomendaciones: [], veredicto: 'cambios' };
-  }
+  const parsed = parseAIResponse(text, 'Claude');
 
   console.log(`[Claude] Result: score=${parsed.score}, veredicto=${parsed.veredicto}, fortalezas=${(parsed.fortalezas || []).length}, problemas=${(parsed.problemas || []).length}`);
   return parsed;
