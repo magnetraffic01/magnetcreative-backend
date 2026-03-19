@@ -21,7 +21,7 @@ router.post('/login', async (req, res, next) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Credenciales invalidas' });
 
-    const token = jwt.sign({ userId: user.id }, config.jwtSecret, { expiresIn: '30d' });
+    const token = jwt.sign({ userId: user.id }, config.jwtSecret, { expiresIn: '7d' });
     await pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
 
     delete user.password_hash;
@@ -42,6 +42,9 @@ router.post('/create-user', authenticate, requireAdmin, async (req, res, next) =
 
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password and name required' });
 
+    const validRoles = ['creative', 'admin'];
+    const finalRole = validRoles.includes(role) ? role : 'creative';
+
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) return res.status(409).json({ error: 'Email already exists' });
 
@@ -50,7 +53,7 @@ router.post('/create-user', authenticate, requireAdmin, async (req, res, next) =
 
     const result = await pool.query(
       'INSERT INTO users (email, password_hash, name, role, negocio, negocios) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, name, role, negocio, negocios',
-      [email, hash, name, role || 'creative', negociosArray[0] || null, JSON.stringify(negociosArray)]
+      [email, hash, name, finalRole, negociosArray[0] || null, JSON.stringify(negociosArray)]
     );
 
     res.status(201).json({ user: result.rows[0] });
@@ -123,7 +126,7 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req, res, next) =
   } catch (error) { next(error); }
 });
 
-// POST /auth/setup-admin (first time setup)
+// POST /auth/setup-admin (first time setup - only works if admin has no password set)
 router.post('/setup-admin', async (req, res, next) => {
   try {
     const pool = req.app.get('db');
@@ -131,13 +134,18 @@ router.post('/setup-admin', async (req, res, next) => {
 
     if (!password) return res.status(400).json({ error: 'Password required' });
 
-    const admin = await pool.query('SELECT id FROM users WHERE email = $1', ['admin@magnetraffic.com']);
+    const admin = await pool.query('SELECT id, password_hash FROM users WHERE email = $1', ['admin@magnetraffic.com']);
     if (admin.rows.length === 0) return res.status(404).json({ error: 'Admin user not found' });
+
+    // Only allow setup if admin has no password (first-time setup)
+    if (admin.rows[0].password_hash) {
+      return res.status(403).json({ error: 'Admin already configured. Use login instead.' });
+    }
 
     const hash = await bcrypt.hash(password, 10);
     await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2', [hash, 'admin@magnetraffic.com']);
 
-    const token = jwt.sign({ userId: admin.rows[0].id }, config.jwtSecret, { expiresIn: '30d' });
+    const token = jwt.sign({ userId: admin.rows[0].id }, config.jwtSecret, { expiresIn: '7d' });
     res.json({ message: 'Admin password set', token });
   } catch (error) { next(error); }
 });

@@ -80,10 +80,27 @@ app.use('/submissions', require('./routes/submissions'));
 app.use('/admin', require('./routes/admin'));
 app.use('/knowledge-base', require('./routes/knowledge-base'));
 
-// Health
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', app: 'MagnetCreative', timestamp: new Date().toISOString() });
+// Health check with DB verification
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', app: 'MagnetCreative', db: 'connected', timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: 'error', app: 'MagnetCreative', db: 'disconnected', timestamp: new Date().toISOString() });
+  }
 });
+
+// Global error handler — hide internal details from client
+app.use((err, req, res, next) => {
+  console.error(`[Error] ${req.method} ${req.path}:`, err.message);
+  res.status(err.status || 500).json({ error: 'Error interno del servidor' });
+});
+
+// Validate critical config before starting
+if (!config.jwtSecret || config.jwtSecret === 'cambiar-en-produccion') {
+  console.error('[FATAL] JWT_SECRET is not set or is using default value. Set a secure JWT_SECRET.');
+  process.exit(1);
+}
 
 // Start
 initDB().then(() => {

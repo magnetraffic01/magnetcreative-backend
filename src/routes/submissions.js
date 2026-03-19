@@ -83,7 +83,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
     } catch (aiErr) {
       console.error('AI analysis error:', aiErr.message);
       await pool.query("UPDATE submissions SET estado = 'error' WHERE id = $1", [submission.id]);
-      res.status(500).json({ error: 'AI analysis failed', details: aiErr.message });
+      res.status(500).json({ error: 'Error en el analisis de IA. Intenta de nuevo.' });
     }
 
   } catch (error) { next(error); }
@@ -139,7 +139,7 @@ router.post('/', authenticate, async (req, res, next) => {
     } catch (aiErr) {
       console.error('AI analysis error:', aiErr.message);
       await pool.query("UPDATE submissions SET estado = 'error' WHERE id = $1", [submission.id]);
-      res.status(500).json({ error: 'AI analysis failed', details: aiErr.message });
+      res.status(500).json({ error: 'Error en el analisis de IA. Intenta de nuevo.' });
     }
 
   } catch (error) { next(error); }
