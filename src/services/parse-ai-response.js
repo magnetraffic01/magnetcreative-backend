@@ -1,12 +1,12 @@
 // Robust multi-strategy JSON parser for AI responses (Gemini, Claude, OpenAI)
-// Handles: markdown wrappers, thinking text before JSON, control chars in strings, malformed JSON
+// Handles: markdown wrappers, thinking text before JSON, control chars in strings, pretty-printed JSON
 
 function parseAIResponse(text, provider = 'AI') {
-  const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+  const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   let parsed = {};
   let parseSuccess = false;
 
-  // Strategy 1: Direct greedy regex + JSON.parse (works for clean responses)
+  // Strategy 1: Direct JSON.parse (works for clean or pretty-printed JSON)
   try {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
@@ -14,58 +14,74 @@ function parseAIResponse(text, provider = 'AI') {
       parseSuccess = true;
     }
   } catch (e1) {
-    console.warn(`[${provider}] Parse strategy 1 failed: ${e1.message}`);
+    console.warn(`[${provider}] Strategy 1 failed: ${e1.message}`);
 
-    // Strategy 2: Brace-matching to find exact JSON boundaries + control char fix
+    // Strategy 2: Fix control chars ONLY inside JSON string values, then parse
     try {
-      const jsonStart = cleaned.indexOf('{');
-      if (jsonStart !== -1) {
-        let braceCount = 0;
-        let jsonEnd = -1;
-        for (let i = jsonStart; i < cleaned.length; i++) {
-          if (cleaned[i] === '{') braceCount++;
-          else if (cleaned[i] === '}') braceCount--;
-          if (braceCount === 0) { jsonEnd = i; break; }
-        }
-        if (jsonEnd !== -1) {
-          let jsonStr = cleaned.substring(jsonStart, jsonEnd + 1);
-          // Fix control characters inside string values
-          jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => {
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (match) {
+        // Replace control chars only inside quoted strings (not between properties)
+        let jsonStr = match[0].replace(/"(?:[^"\\]|\\.)*"/g, (str) => {
+          return str.replace(/[\x00-\x1F]/g, (ch) => {
             if (ch === '\n') return '\\n';
             if (ch === '\r') return '\\r';
             if (ch === '\t') return '\\t';
-            return '';
+            return ' ';
           });
-          parsed = JSON.parse(jsonStr);
-          parseSuccess = true;
-          console.log(`[${provider}] Strategy 2 succeeded (brace matching + control char fix)`);
-        }
+        });
+        parsed = JSON.parse(jsonStr);
+        parseSuccess = true;
+        console.log(`[${provider}] Strategy 2 succeeded (control char fix in strings)`);
       }
     } catch (e2) {
-      console.warn(`[${provider}] Parse strategy 2 failed: ${e2.message}`);
+      console.warn(`[${provider}] Strategy 2 failed: ${e2.message}`);
 
-      // Strategy 3: Extract individual fields with regex
+      // Strategy 3: Brace-matching + replace ALL newlines with spaces (lossy but works)
       try {
-        const scoreMatch = cleaned.match(/"score"\s*:\s*(\d+)/);
-        const resumenMatch = cleaned.match(/"resumen"\s*:\s*"([^"]*(?:\\"[^"]*)*)"/);
-        const veredictoMatch = cleaned.match(/"veredicto"\s*:\s*"(aprobar|cambios|rechazar)"/);
-        const fortalezasMatch = cleaned.match(/"fortalezas"\s*:\s*\[([\s\S]*?)\]/);
-        const problemasMatch = cleaned.match(/"problemas"\s*:\s*\[([\s\S]*?)\]/);
-
-        if (scoreMatch) {
-          parsed = {
-            score: parseInt(scoreMatch[1]),
-            resumen: resumenMatch ? resumenMatch[1].replace(/\\"/g, '"') : 'Evaluacion completada (parsing parcial)',
-            veredicto: veredictoMatch ? veredictoMatch[1] : 'cambios',
-            fortalezas: fortalezasMatch ? (fortalezasMatch[1].match(/"([^"]*)"/g) || []).map(s => s.replace(/"/g, '')) : [],
-            problemas: problemasMatch ? (problemasMatch[1].match(/"([^"]*)"/g) || []).map(s => s.replace(/"/g, '')) : [],
-            recomendaciones: []
-          };
-          parseSuccess = true;
-          console.log(`[${provider}] Strategy 3 succeeded (regex field extraction, score=${parsed.score})`);
+        const jsonStart = cleaned.indexOf('{');
+        if (jsonStart !== -1) {
+          let braceCount = 0;
+          let jsonEnd = -1;
+          for (let i = jsonStart; i < cleaned.length; i++) {
+            if (cleaned[i] === '{') braceCount++;
+            else if (cleaned[i] === '}') braceCount--;
+            if (braceCount === 0) { jsonEnd = i; break; }
+          }
+          if (jsonEnd !== -1) {
+            // Replace all newlines with spaces - safe because JSON whitespace is flexible
+            let jsonStr = cleaned.substring(jsonStart, jsonEnd + 1);
+            jsonStr = jsonStr.replace(/[\r\n]+/g, ' ');
+            parsed = JSON.parse(jsonStr);
+            parseSuccess = true;
+            console.log(`[${provider}] Strategy 3 succeeded (newlines to spaces)`);
+          }
         }
       } catch (e3) {
-        console.error(`[${provider}] Parse strategy 3 failed: ${e3.message}`);
+        console.warn(`[${provider}] Strategy 3 failed: ${e3.message}`);
+
+        // Strategy 4: Extract individual fields with regex (last resort)
+        try {
+          const scoreMatch = cleaned.match(/"score"\s*:\s*(\d+)/);
+          const resumenMatch = cleaned.match(/"resumen"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+          const veredictoMatch = cleaned.match(/"veredicto"\s*:\s*"(aprobar|cambios|rechazar)"/);
+          const fortalezasMatch = cleaned.match(/"fortalezas"\s*:\s*\[([\s\S]*?)\]/);
+          const problemasMatch = cleaned.match(/"problemas"\s*:\s*\[([\s\S]*?)\]/);
+
+          if (scoreMatch) {
+            parsed = {
+              score: parseInt(scoreMatch[1]),
+              resumen: resumenMatch ? resumenMatch[1].replace(/\\"/g, '"').replace(/\\n/g, ' ') : 'Evaluacion completada (parsing parcial)',
+              veredicto: veredictoMatch ? veredictoMatch[1] : 'cambios',
+              fortalezas: fortalezasMatch ? (fortalezasMatch[1].match(/"((?:[^"\\]|\\.)*)"/g) || []).map(s => s.slice(1, -1)) : [],
+              problemas: problemasMatch ? (problemasMatch[1].match(/"((?:[^"\\]|\\.)*)"/g) || []).map(s => s.slice(1, -1)) : [],
+              recomendaciones: []
+            };
+            parseSuccess = true;
+            console.log(`[${provider}] Strategy 4 succeeded (regex extraction, score=${parsed.score})`);
+          }
+        } catch (e4) {
+          console.error(`[${provider}] Strategy 4 failed: ${e4.message}`);
+        }
       }
     }
   }
