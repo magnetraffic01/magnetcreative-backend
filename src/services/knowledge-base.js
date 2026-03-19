@@ -153,6 +153,13 @@ EVALUAR OBLIGATORIAMENTE:
 5. FORMATO DE LEAD (15 pts): ¿Las dimensiones son correctas para Meta Ads? ¿El texto cumple la regla de 20% de Meta? ¿Es mobile-first? ¿El boton/enlace es visible y grande?
 6. URGENCIA (10 pts): ¿Hay razon para actuar AHORA? (tiempo limitado, cupo limitado, precio especial)
 
+REGLA DE FIGURAS HUMANAS EN LEADS:
+- Las figuras humanas (fotos de personas, modelos, rostros) DISTRAEN del mensaje principal en ads de generacion de leads
+- El prospecto se enfoca en la persona y NO en la oferta/CTA
+- Para leads es mas efectivo: iconos, ilustraciones simples, numeros grandes, beneficio en texto directo, colores contrastantes
+- Si hay persona, debe ser MUY secundaria (fondo borroso, pequena) y el texto/oferta debe dominar el 80%+ del espacio
+- Penalizar si la figura humana ocupa mas del 30% de la imagen y no hay oferta clara visible
+
 ERRORES CRITICOS (descuentan 15 pts cada uno):
 - CTA que dice "Conoce más" o "Más información" en vez de accion directa
 - No mencionar el beneficio principal en el primer 25% del creativo
@@ -160,6 +167,7 @@ ERRORES CRITICOS (descuentan 15 pts cada uno):
 - Imagen generica de stock sin conexion emocional
 - Demasiado texto (Meta rechaza ads con >20% texto en imagen)
 - No incluir WhatsApp como canal de contacto (audiencia hispana)
+- Figura humana dominante que distrae de la oferta/CTA (ver regla arriba)
 `,
 
   reclutamiento: `
