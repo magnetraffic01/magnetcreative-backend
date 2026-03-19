@@ -96,6 +96,7 @@ app.use('/submissions', require('./routes/submissions'));
 app.use('/submissions', require('./routes/chat'));
 app.use('/admin', require('./routes/admin'));
 app.use('/knowledge-base', require('./routes/knowledge-base'));
+app.use('/feed', require('./routes/feed'));
 
 // Health check with DB verification
 app.get('/health', async (req, res) => {
