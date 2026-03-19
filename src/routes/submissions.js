@@ -33,6 +33,9 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
       RETURNING *
     `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', descripcion, gemini_file_uri || null]);
 
+    // Attach objetivo for AI context (not stored in DB column yet but passed to AI)
+    result.rows[0].objetivo = objetivo;
+
     const submission = result.rows[0];
 
     // Convert uploaded file to base64 for Claude
@@ -84,7 +87,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 router.post('/', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email } = req.body;
+    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo } = req.body;
 
     if (!titulo || !negocio) {
       return res.status(400).json({ error: 'Titulo and negocio are required' });
@@ -99,7 +102,8 @@ router.post('/', authenticate, async (req, res, next) => {
     `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, gemini_file_uri, contenido_email]);
 
     const submission = result.rows[0];
-    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), Gemini URI: ${gemini_file_uri || 'none'}`);
+    submission.objetivo = objetivo; // Pass to AI context
+    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), objetivo: ${objetivo || 'none'}, Gemini URI: ${gemini_file_uri || 'none'}`);
 
     try {
       const analysis = await analyzeSubmission(submission, null, null);

@@ -139,10 +139,177 @@ TIPO 7 - Branding: Conocimiento de marca. Emocional, memorable, compartible.
 TIPO 8 - Seguimiento: Nurturing. Personalizado, valor adicional, recordatorio suave.
 `;
 
+// Criterios de evaluacion por OBJETIVO
+const CRITERIOS_POR_OBJETIVO = {
+  leads: `
+CRITERIOS ESPECIFICOS PARA GENERACION DE LEADS:
+Este creativo tiene como objetivo CAPTAR DATOS del prospecto (nombre, telefono, email).
+
+EVALUAR OBLIGATORIAMENTE:
+1. HOOK EMOCIONAL (20 pts): ¿Abre con un pain point real de la audiencia? ¿Genera urgencia? ¿El prospecto se identifica en los primeros 2 segundos?
+2. OFERTA CLARA (20 pts): ¿Se entiende QUE ofrece en menos de 5 segundos? ¿Menciona precio/descuento/gratis? ¿Hay una propuesta de valor irresistible?
+3. CTA DIRECTO (20 pts): ¿El CTA pide una accion especifica? (Cotiza gratis, Llama ahora, Envía tu documento). NO sirven CTAs vagos como "Conoce más" o "Visita nuestra página".
+4. CONFIANZA (15 pts): ¿Incluye prueba social? (testimonios, numero de clientes, calificaciones, logos, certificaciones). ¿Elimina el miedo a actuar?
+5. FORMATO DE LEAD (15 pts): ¿Las dimensiones son correctas para Meta Ads? ¿El texto cumple la regla de 20% de Meta? ¿Es mobile-first? ¿El boton/enlace es visible y grande?
+6. URGENCIA (10 pts): ¿Hay razon para actuar AHORA? (tiempo limitado, cupo limitado, precio especial)
+
+ERRORES CRITICOS (descuentan 15 pts cada uno):
+- CTA que dice "Conoce más" o "Más información" en vez de accion directa
+- No mencionar el beneficio principal en el primer 25% del creativo
+- Formulario o siguiente paso no claro
+- Imagen generica de stock sin conexion emocional
+- Demasiado texto (Meta rechaza ads con >20% texto en imagen)
+- No incluir WhatsApp como canal de contacto (audiencia hispana)
+`,
+
+  reclutamiento: `
+CRITERIOS ESPECIFICOS PARA RECLUTAMIENTO:
+Objetivo: atraer distribuidores/afiliados al negocio.
+
+EVALUAR:
+1. OPORTUNIDAD CLARA (25 pts): ¿Se entiende que es una oportunidad de ingreso? ¿Menciona cuanto pueden ganar? ¿Es realista?
+2. TESTIMONIOS (20 pts): ¿Muestra resultados reales de personas similares? ¿Son creibles?
+3. PLAN SIMPLE (20 pts): ¿Explica los pasos para empezar? ¿Parece facil?
+4. ELIMINACION DE BARRERAS (15 pts): ¿Aborda objeciones? (sin inversion, sin experiencia, desde tu celular)
+5. CTA DE RECLUTAMIENTO (10 pts): ¿Invita a unirse/registrarse/agendar llamada?
+6. PROFESIONALISMO (10 pts): ¿Se ve como negocio serio, no como esquema piramidal?
+`,
+
+  retencion: `
+CRITERIOS ESPECIFICOS PARA RETENCION:
+Objetivo: mantener clientes actuales, reducir cancelaciones.
+
+EVALUAR:
+1. VALOR CONTINUO (25 pts): ¿Recuerda al cliente por que se unio? ¿Muestra beneficios que quizas no ha usado?
+2. COMUNIDAD (20 pts): ¿Hace sentir al cliente parte de algo? ¿Usa "nosotros", "familia", "comunidad"?
+3. EXCLUSIVIDAD (20 pts): ¿Ofrece algo especial para clientes actuales? ¿Descuento por lealtad, contenido exclusivo?
+4. EMOTIVIDAD (15 pts): ¿Conecta emocionalmente? ¿Storytelling de transformacion?
+5. FACILIDAD DE USO (10 pts): ¿Recuerda como usar el servicio? ¿Tips practicos?
+6. SIN PRESION DE VENTA (10 pts): ¿Es contenido de valor, no venta agresiva?
+`,
+
+  branding: `
+CRITERIOS ESPECIFICOS PARA BRANDING:
+Objetivo: conocimiento de marca, posicionamiento, recordacion.
+
+EVALUAR:
+1. IDENTIDAD VISUAL (25 pts): ¿Colores, fuentes y estilo consistentes con la marca? ¿Logo visible pero no invasivo?
+2. MENSAJE MEMORABLE (20 pts): ¿Se recuerda despues de verlo? ¿Tiene una frase o concepto central potente?
+3. EMOCION (20 pts): ¿Genera sentimiento positivo? ¿Conecta con los valores de la audiencia?
+4. COMPARTIBILIDAD (15 pts): ¿La gente lo compartiria en WhatsApp/redes? ¿Es interesante/util/inspirador?
+5. DIFERENCIACION (10 pts): ¿Se distingue de la competencia? ¿Tiene personalidad propia?
+6. PROFESIONALISMO (10 pts): ¿Calidad de produccion acorde a la marca?
+`,
+
+  webinar: `
+CRITERIOS ESPECIFICOS PARA WEBINAR/EVENTO:
+Objetivo: lograr registros para evento en vivo o grabado.
+
+EVALUAR:
+1. TITULO DEL EVENTO (20 pts): ¿Es compelling? ¿Promete un resultado especifico?
+2. FECHA/HORA CLARA (15 pts): ¿Se ve facilmente cuando es? ¿Timezone?
+3. SPEAKER/AUTORIDAD (15 pts): ¿Muestra quien presenta? ¿Credibilidad?
+4. BENEFICIO DE ASISTIR (20 pts): ¿Que va a aprender/obtener el asistente?
+5. CTA DE REGISTRO (15 pts): ¿Boton/enlace de registro claro y visible?
+6. URGENCIA/EXCLUSIVIDAD (15 pts): ¿Cupos limitados? ¿Bonus por registrarse?
+`,
+
+  educativo: `
+CRITERIOS ESPECIFICOS PARA CONTENIDO EDUCATIVO:
+Objetivo: aportar valor, educar, posicionar como experto.
+
+EVALUAR:
+1. VALOR REAL (25 pts): ¿El contenido es util y aplicable? ¿Resuelve una duda real?
+2. CLARIDAD (20 pts): ¿Se entiende facilmente? ¿Lenguaje simple, sin jerga?
+3. ESTRUCTURA (20 pts): ¿Tiene inicio-desarrollo-conclusion? ¿Fluye logicamente?
+4. CREDIBILIDAD (15 pts): ¿Demuestra expertise? ¿Datos verificables?
+5. ENGAGEMENT (10 pts): ¿Invita a guardar/compartir? ¿Tiene formato atractivo (tips, lista, infografia)?
+6. BRANDING SUTIL (10 pts): ¿Asocia la marca con autoridad sin vender directamente?
+`,
+
+  venta_directa: `
+CRITERIOS ESPECIFICOS PARA VENTA DIRECTA:
+Objetivo: convertir en compra/contratacion inmediata.
+
+EVALUAR:
+1. PRODUCTO/PRECIO CLARO (25 pts): ¿Se sabe exactamente que se vende y cuanto cuesta?
+2. BENEFICIO PRINCIPAL (20 pts): ¿Por que comprarlo? ¿Que problema resuelve?
+3. URGENCIA (15 pts): ¿Razon para comprar AHORA? ¿Oferta limitada, descuento?
+4. PRUEBA SOCIAL (15 pts): ¿Testimonios, reviews, numero de clientes satisfechos?
+5. CTA DE COMPRA (15 pts): ¿Boton/enlace claro para comprar? ¿Proceso simple?
+6. OBJECIONES (10 pts): ¿Aborda las dudas principales? (garantia, devolucion, soporte)
+`,
+
+  seguimiento: `
+CRITERIOS ESPECIFICOS PARA SEGUIMIENTO/FOLLOW-UP:
+Objetivo: reactivar prospectos que no convirtieron, nurturing.
+
+EVALUAR:
+1. PERSONALIZACION (25 pts): ¿Se siente personal, no masivo? ¿Referencia interaccion previa?
+2. VALOR ADICIONAL (20 pts): ¿Ofrece algo nuevo que no vio antes? ¿Tip, descuento, info?
+3. TONO NO AGRESIVO (20 pts): ¿Es un recordatorio amable, no presion? ¿Respeta el tiempo?
+4. CTA SUAVE (15 pts): ¿Invita sin obligar? "Cuando estes listo", "Si tienes dudas"
+5. CANALES (10 pts): ¿Facilita responder por WhatsApp/telefono?
+6. TIMING (10 pts): ¿Es apropiado para follow-up? ¿No es el primer contacto?
+`
+};
+
+// Rubrica especifica para IMAGENES
+const RUBRICA_IMAGEN = `
+RUBRICA DE EVALUACION DE IMAGENES (100 PUNTOS):
+
+1. Impacto Visual Inmediato (15 pts): ¿Captura atencion en menos de 1 segundo? ¿Destaca en el feed?
+2. StoryBrand Adaptado (15 pts): Heroe (cliente), guia (marca), problema, plan, CTA, exito/fracaso
+3. Copy/Texto (15 pts): Legible, conciso, en el idioma correcto, cumple regla de 20% de texto de Meta
+4. CTA y Conversion (12 pts): CTA claro, visible, accionable, con siguiente paso definido
+5. Identidad de Marca (10 pts): Colores, logo, fuentes consistentes con la guia visual del negocio
+6. Calidad Tecnica (10 pts): Resolucion, dimensiones correctas para la plataforma, nitidez
+7. Conexion Cultural (10 pts): Personajes e imagenes que representan la audiencia hispana, sin estereotipos
+8. Adaptacion a Plataforma (8 pts): Dimensiones, formato, y specs correctos para la plataforma destino
+9. Compartibilidad (5 pts): ¿Se compartiria facilmente por WhatsApp/redes?
+
+UMBRALES:
+- 90-100: Publicar inmediatamente
+- 80-89: Aprobado con observaciones menores
+- 70-79: Aprobado con cambios recomendados
+- 50-69: Requiere cambios - no publicar
+- 0-49: Rechazado - rehacer
+`;
+
+const RUBRICA_EMAIL = `
+RUBRICA DE EVALUACION DE EMAILS (100 PUNTOS):
+
+1. Linea de Asunto (15 pts): Genera curiosidad, no es spam, menos de 50 caracteres
+2. StoryBrand (15 pts): Estructura heroe-guia-problema-plan-CTA
+3. Copy Persuasivo (15 pts): Natural, no suena a robot, personalizado
+4. CTA Claro (12 pts): Visible, directo, con urgencia apropiada
+5. Estructura Visual (12 pts): Header, body, CTA, footer, escaneable, mobile-friendly
+6. Personalizacion (10 pts): Usa nombre, contexto, segmentacion
+7. Longitud (8 pts): Apropiada para el objetivo (corto para leads, mas largo para educativo)
+8. Compliance (8 pts): Unsubscribe, direccion fisica, no misleading
+9. Valor (5 pts): Aporta algo al lector, no solo vende
+`;
+
+const RUBRICA_PRESENTACION = `
+RUBRICA DE EVALUACION DE PRESENTACIONES (100 PUNTOS):
+
+1. Primer Slide/Portada (15 pts): Impactante, titulo claro, genera interes
+2. StoryBrand (15 pts): Flujo problema-solucion-CTA a lo largo de las slides
+3. Diseno Visual (15 pts): Consistencia, colores de marca, profesionalismo
+4. Texto Conciso (12 pts): Maximo 6 lineas por slide, una idea por slide
+5. Flujo Logico (12 pts): La informacion progresa naturalmente
+6. CTA Final (10 pts): Slide final con accion clara
+7. Imagenes/Graficos (10 pts): Relevantes, alta calidad, apoyan el mensaje
+8. Legibilidad (6 pts): Fuentes legibles, contraste adecuado, tamano apropiado
+9. Branding (5 pts): Logo, colores, fuentes de marca consistentes
+`;
+
 // Build context for AI based on submission
 function buildKnowledgeContext(submission) {
   const negocio = NEGOCIOS[submission.negocio] || NEGOCIOS['TrebolLife'];
   const negocioName = submission.negocio || 'TrebolLife';
+  const objetivo = submission.objetivo;
+  const tipo = submission.tipo;
 
   let context = `\n\nBASE DE CONOCIMIENTO DEL NEGOCIO:\n`;
   context += `Negocio: ${negocioName}\n`;
@@ -151,14 +318,46 @@ function buildKnowledgeContext(submission) {
   context += `Tono de marca: ${negocio.tono}\n`;
   context += `Productos/servicios: ${negocio.productos}\n`;
   context += `Diferenciador clave: ${negocio.diferenciador}\n`;
+
+  // Include ALL available business fields
+  if (negocio.visual) context += `Guia visual: ${negocio.visual}\n`;
+  if (negocio.storybrand) context += `StoryBrand del negocio: ${negocio.storybrand}\n`;
+  if (negocio.proceso) context += `Proceso: ${negocio.proceso}\n`;
+  if (negocio.ahorros) context += `Ejemplos de ahorro: ${negocio.ahorros}\n`;
+  if (negocio.objeciones) context += `Objeciones comunes: ${negocio.objeciones}\n`;
+  if (negocio.proceso_venta) context += `Proceso de venta: ${negocio.proceso_venta}\n`;
+  if (negocio.final_expense) context += `Final Expense: ${negocio.final_expense}\n`;
+  if (negocio.contacto) context += `Contacto: ${negocio.contacto}\n`;
+  if (negocio.urls) context += `URLs: ${negocio.urls}\n`;
+  if (negocio.redes) context += `Redes: ${negocio.redes}\n`;
+
+  // StoryBrand methodology
   context += `\n${STORYBRAND_HISPANO}\n`;
 
-  if (submission.tipo === 'video') {
+  // Rubric by content TYPE
+  if (tipo === 'video') {
     context += `\n${RUBRICA_VIDEO}\n`;
     context += `\n${TIPOS_VIDEO}\n`;
+  } else if (tipo === 'imagen' || tipo === 'plantilla') {
+    context += `\n${RUBRICA_IMAGEN}\n`;
+  } else if (tipo === 'email') {
+    context += `\n${RUBRICA_EMAIL}\n`;
+  } else if (tipo === 'presentacion') {
+    context += `\n${RUBRICA_PRESENTACION}\n`;
   }
 
-  context += `\nEvalua este creativo considerando TODO el contexto del negocio, la audiencia, el tono de marca y la metodologia StoryBrand adaptada para hispanos. Se estricto pero constructivo. Cada critica debe venir con una sugerencia concreta de mejora.\n`;
+  // Criteria by OBJECTIVE
+  if (objetivo && CRITERIOS_POR_OBJETIVO[objetivo]) {
+    context += `\n${CRITERIOS_POR_OBJETIVO[objetivo]}\n`;
+  }
+
+  context += `\nINSTRUCCIONES FINALES:`;
+  context += `\n- Evalua usando LA RUBRICA DEL TIPO (${tipo}) Y LOS CRITERIOS DEL OBJETIVO (${objetivo || 'general'}).`;
+  context += `\n- Cada fortaleza y problema debe ser ESPECIFICO al creativo, no generico.`;
+  context += `\n- Cada recomendacion debe incluir QUE cambiar y COMO cambiarlo concretamente.`;
+  context += `\n- Verifica que el creativo respete el tono, la audiencia y las reglas visuales del negocio ${negocioName}.`;
+  context += `\n- Penaliza si usa palabras prohibidas del negocio o no se alinea con StoryBrand.`;
+  context += `\n- Se estricto pero constructivo. El disenador necesita saber EXACTAMENTE que mejorar.\n`;
 
   return context;
 }
