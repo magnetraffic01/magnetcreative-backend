@@ -41,13 +41,16 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
     // Convert uploaded file to base64 for Claude
     let imageBase64 = null;
     let imageMimeType = null;
+    console.log(`[Submission] req.file exists: ${!!req.file}, req.files: ${!!req.files}, content-type: ${req.headers['content-type']}`);
     if (req.file) {
       imageBase64 = req.file.buffer.toString('base64');
       imageMimeType = req.file.mimetype;
-      console.log(`[Submission] #${submission.id}: File received (${Math.round(req.file.size / 1024)}KB, ${imageMimeType})`);
+      console.log(`[Submission] #${submission.id}: File received (${Math.round(req.file.size / 1024)}KB, ${imageMimeType}, base64 length: ${imageBase64.length})`);
+    } else {
+      console.log(`[Submission] #${submission.id}: NO FILE RECEIVED - multer did not process any file`);
     }
 
-    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), hasFile: ${!!imageBase64}`);
+    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), hasFile: ${!!imageBase64}, objetivo: ${objetivo || 'none'}`);
 
     // Analyze with AI
     try {
