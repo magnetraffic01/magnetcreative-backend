@@ -77,6 +77,14 @@ async function runMigrations() {
       await pool.query(migration);
       console.log('Migration 002 complete!');
     }
+    // Migration 003: KB categoria + documento
+    const hasCategoria = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'knowledge_base' AND column_name = 'categoria')`);
+    if (!hasCategoria.rows[0].exists) {
+      console.log('Running migration 003: KB categoria + documento...');
+      const migration = fs.readFileSync(path.join(__dirname, '..', 'database', 'migrate-003-kb-categoria.sql'), 'utf8');
+      await pool.query(migration);
+      console.log('Migration 003 complete!');
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }

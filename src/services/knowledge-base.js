@@ -361,18 +361,28 @@ async function buildKnowledgeContext(submission, pool) {
   }
 
   // Load admin-created KB entries from database
+  // Filter by negocio AND categoria (maps objetivo/tipo to relevant KB categories)
   if (pool) {
     try {
+      // Map submission context to relevant KB categories
+      const relevantCategorias = ['general'];
+      if (objetivo) relevantCategorias.push(objetivo); // leads, reclutamiento, etc.
+      if (tipo === 'video') relevantCategorias.push('video_ads');
+      if (tipo === 'imagen' || tipo === 'plantilla') relevantCategorias.push('imagen_ads');
+      if (tipo === 'email') relevantCategorias.push('email_marketing');
+      relevantCategorias.push('copies'); // copies always relevant
+
       const kbResult = await pool.query(
-        `SELECT titulo, tipo, contenido FROM knowledge_base
-         WHERE negocio IS NULL OR negocio = '' OR negocio = $1
+        `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+         WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
+         AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
          ORDER BY updated_at DESC`,
-        [negocioName]
+        [negocioName, relevantCategorias]
       );
       if (kbResult.rows.length > 0) {
         context += `\n\nREGLAS ADICIONALES DEL ADMIN (Base de Conocimiento):\n`;
         for (const entry of kbResult.rows) {
-          context += `\n[${entry.titulo}] (${entry.tipo}):\n${entry.contenido}\n`;
+          context += `\n[${entry.titulo}] (${entry.tipo}${entry.categoria ? ', ' + entry.categoria : ''}):\n${entry.contenido}\n`;
         }
       }
     } catch (err) {
