@@ -6,6 +6,13 @@ const { getApiKey } = require('../services/gemini');
 
 const router = express.Router();
 
+// Score threshold: >= 70 goes to admin review, < 70 stays with designer
+const ADMIN_REVIEW_THRESHOLD = 70;
+
+function getEstadoByScore(score) {
+  return score >= ADMIN_REVIEW_THRESHOLD ? 'evaluado' : 'rechazado_ai';
+}
+
 // Multer for file uploads (in-memory, max 20MB)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -59,9 +66,12 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
     try {
       const analysis = await analyzeSubmission(submission, imageBase64, imageMimeType);
 
+      const finalScore = analysis.score || 50;
+      const estado = getEstadoByScore(finalScore);
+
       await pool.query(`
         UPDATE submissions SET
-          estado = 'evaluado',
+          estado = $13,
           ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
           ai_hook_presente = $4, ai_hook_descripcion = $5,
           ai_cta_presente = $6, ai_cta_descripcion = $7,
@@ -74,7 +84,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
         analysis.cta_presente ?? null, analysis.cta_descripcion || null,
         JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
         JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
-        submission.id
+        submission.id, estado
       ]);
 
       const updated = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
@@ -115,9 +125,12 @@ router.post('/', authenticate, async (req, res, next) => {
     try {
       const analysis = await analyzeSubmission(submission, null, null);
 
+      const finalScore = analysis.score || 50;
+      const estado = getEstadoByScore(finalScore);
+
       await pool.query(`
         UPDATE submissions SET
-          estado = 'evaluado',
+          estado = $13,
           ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
           ai_hook_presente = $4, ai_hook_descripcion = $5,
           ai_cta_presente = $6, ai_cta_descripcion = $7,
@@ -130,7 +143,7 @@ router.post('/', authenticate, async (req, res, next) => {
         analysis.cta_presente ?? null, analysis.cta_descripcion || null,
         JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
         JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
-        submission.id
+        submission.id, estado
       ]);
 
       const updated = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
@@ -167,19 +180,22 @@ router.post('/email', authenticate, async (req, res, next) => {
     console.log(`[Submission] Created email #${submission.id}: ${titulo}, objetivo: ${objetivo || 'none'}`);
     const analysis = await analyzeSubmission(submission, null, null);
 
+    const finalScore = analysis.score || 50;
+    const estado = getEstadoByScore(finalScore);
+
     await pool.query(`
       UPDATE submissions SET
-        estado = 'evaluado',
+        estado = $10,
         ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
         ai_cta_presente = $4, ai_cta_descripcion = $5,
         ai_fortalezas = $6, ai_problemas = $7, ai_recomendaciones = $8,
         ai_analyzed_at = NOW(), updated_at = NOW()
       WHERE id = $9
     `, [
-      analysis.score || 50, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
+      finalScore, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
       analysis.cta_presente ?? null, analysis.cta_descripcion || null,
       JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
-      JSON.stringify(analysis.recomendaciones || []), submission.id
+      JSON.stringify(analysis.recomendaciones || []), submission.id, estado
     ]);
 
     const updated = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
