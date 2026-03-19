@@ -62,7 +62,7 @@ async function analyzeContent(submission) {
   const model = 'gemini-2.5-flash';
   console.log(`[Gemini] Analyzing: ${submission.titulo} (${tipo}), model: ${model}, URI: ${submission.gemini_file_uri || 'none'}`);
 
-  const generationConfig = { temperature: 0.3, maxOutputTokens: 4000 };
+  const generationConfig = { temperature: 0.3, maxOutputTokens: 8192 };
 
   const response = await fetch(`${GEMINI_URL}/models/${model}:generateContent?key=${config.geminiApiKey}`, {
     method: 'POST',
