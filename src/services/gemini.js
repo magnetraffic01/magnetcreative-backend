@@ -57,14 +57,11 @@ async function analyzeContent(submission) {
   }
 
   const hasFile = !!submission.gemini_file_uri && tipo !== 'email';
-  // Use gemini-2.0-flash for file analysis (more stable), 2.5-flash for text-only
-  const model = hasFile ? 'gemini-2.0-flash' : 'gemini-2.5-flash';
+  // Use gemini-2.5-flash for all analysis
+  const model = 'gemini-2.5-flash';
   console.log(`[Gemini] Analyzing: ${submission.titulo} (${tipo}), model: ${model}, URI: ${submission.gemini_file_uri || 'none'}`);
 
   const generationConfig = { temperature: 0.3, maxOutputTokens: 4000 };
-  if (!hasFile) {
-    generationConfig.thinkingConfig = { thinkingBudget: 1024 };
-  }
 
   const response = await fetch(`${GEMINI_URL}/models/${model}:generateContent?key=${config.geminiApiKey}`, {
     method: 'POST',
