@@ -43,10 +43,12 @@ async function analyzeWithClaude(submission, imageBase64, imageMimeType) {
       text: `CORREO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Contenido:\n${submission.contenido_email}\n\nEvalua este correo y genera tu evaluacion.`
     }];
   } else if (imageBase64) {
-    // Image analysis
+    // Detect if PDF/document or image
+    const isPdf = imageMimeType === 'application/pdf';
+    const contentType = isPdf ? 'document' : 'image';
     content = [
       {
-        type: 'image',
+        type: contentType,
         source: {
           type: 'base64',
           media_type: imageMimeType || 'image/jpeg',
