@@ -65,6 +65,15 @@ const NEGOCIOS = {
     diferenciador: 'Planes para TODOS sin importar estatus migratorio, asesoria en espanol, ayuda con subsidios ACA, proceso simplificado, sin verificacion de empleo, herramientas digitales (portal, app, calculadoras de costos), proteccion contra facturacion sorpresa.',
     urls: 'healthcare.gov (ACA)',
     redes: 'Instagram, Facebook, WhatsApp'
+  },
+  BankyBlendz: {
+    descripcion: 'Barberia especializada en cortes, fades y servicios de grooming masculino. Contenido enfocado en mostrar transformaciones, tecnicas de corte y estilo de vida de barberia.',
+    audiencia: 'Hombres jovenes y adultos (16-40 anos) que buscan cortes modernos, fades, y servicios de barberia de calidad. Clientes locales y potenciales que descubren la barberia por redes sociales.',
+    tono: 'Autentico, visual, moderno, urbano. El contenido debe hablar por si mismo - las transformaciones son el mejor marketing. Energia positiva, confianza, estilo.',
+    productos: 'Cortes de cabello, fades, beard trims, lineups, disenos, servicios de grooming completos.',
+    diferenciador: 'Definido por la base de conocimiento del admin. Subir documentos con el estilo unico, reglas de contenido y criterios de evaluacion de BankyBlendz.',
+    urls: '',
+    redes: 'TikTok, Instagram'
   }
 };
 
@@ -314,50 +323,59 @@ RUBRICA DE EVALUACION DE PRESENTACIONES (100 PUNTOS):
 
 // Build context for AI based on submission
 // Can receive db pool to also load entries from knowledge_base table
+// List of internal businesses that get full hardcoded KB (StoryBrand, rubrics, etc.)
+const INTERNAL_NEGOCIOS = ['TrebolLife', 'Traduce', 'MagneTraffic', 'FFL', 'Dental', 'Salud'];
+
 async function buildKnowledgeContext(submission, pool) {
-  const negocio = NEGOCIOS[submission.negocio] || NEGOCIOS['TrebolLife'];
   const negocioName = submission.negocio || 'TrebolLife';
+  const negocio = NEGOCIOS[negocioName];
   const objetivo = submission.objetivo;
   const tipo = submission.tipo;
+  const isInternal = INTERNAL_NEGOCIOS.includes(negocioName);
 
   let context = `\n\nBASE DE CONOCIMIENTO DEL NEGOCIO:\n`;
-  context += `Negocio: ${negocioName}\n`;
-  context += `Descripcion: ${negocio.descripcion}\n`;
-  context += `Audiencia objetivo: ${negocio.audiencia}\n`;
-  context += `Tono de marca: ${negocio.tono}\n`;
-  context += `Productos/servicios: ${negocio.productos}\n`;
-  context += `Diferenciador clave: ${negocio.diferenciador}\n`;
 
-  // Include ALL available business fields
-  if (negocio.visual) context += `Guia visual: ${negocio.visual}\n`;
-  if (negocio.storybrand) context += `StoryBrand del negocio: ${negocio.storybrand}\n`;
-  if (negocio.proceso) context += `Proceso: ${negocio.proceso}\n`;
-  if (negocio.ahorros) context += `Ejemplos de ahorro: ${negocio.ahorros}\n`;
-  if (negocio.objeciones) context += `Objeciones comunes: ${negocio.objeciones}\n`;
-  if (negocio.proceso_venta) context += `Proceso de venta: ${negocio.proceso_venta}\n`;
-  if (negocio.final_expense) context += `Final Expense: ${negocio.final_expense}\n`;
-  if (negocio.contacto) context += `Contacto: ${negocio.contacto}\n`;
-  if (negocio.urls) context += `URLs: ${negocio.urls}\n`;
-  if (negocio.redes) context += `Redes: ${negocio.redes}\n`;
+  if (negocio) {
+    context += `Negocio: ${negocioName}\n`;
+    context += `Descripcion: ${negocio.descripcion}\n`;
+    context += `Audiencia objetivo: ${negocio.audiencia}\n`;
+    context += `Tono de marca: ${negocio.tono}\n`;
+    context += `Productos/servicios: ${negocio.productos}\n`;
+    context += `Diferenciador clave: ${negocio.diferenciador}\n`;
 
-  // StoryBrand methodology
-  context += `\n${STORYBRAND_HISPANO}\n`;
-
-  // Rubric by content TYPE
-  if (tipo === 'video') {
-    context += `\n${RUBRICA_VIDEO}\n`;
-    context += `\n${TIPOS_VIDEO}\n`;
-  } else if (tipo === 'imagen' || tipo === 'plantilla') {
-    context += `\n${RUBRICA_IMAGEN}\n`;
-  } else if (tipo === 'email') {
-    context += `\n${RUBRICA_EMAIL}\n`;
-  } else if (tipo === 'presentacion') {
-    context += `\n${RUBRICA_PRESENTACION}\n`;
+    if (negocio.visual) context += `Guia visual: ${negocio.visual}\n`;
+    if (negocio.storybrand) context += `StoryBrand del negocio: ${negocio.storybrand}\n`;
+    if (negocio.proceso) context += `Proceso: ${negocio.proceso}\n`;
+    if (negocio.ahorros) context += `Ejemplos de ahorro: ${negocio.ahorros}\n`;
+    if (negocio.objeciones) context += `Objeciones comunes: ${negocio.objeciones}\n`;
+    if (negocio.proceso_venta) context += `Proceso de venta: ${negocio.proceso_venta}\n`;
+    if (negocio.final_expense) context += `Final Expense: ${negocio.final_expense}\n`;
+    if (negocio.contacto) context += `Contacto: ${negocio.contacto}\n`;
+    if (negocio.urls) context += `URLs: ${negocio.urls}\n`;
+    if (negocio.redes) context += `Redes: ${negocio.redes}\n`;
+  } else {
+    context += `Negocio: ${negocioName}\n`;
+    context += `NOTA: Evalua este creativo usando UNICAMENTE la base de conocimiento del admin para este negocio. No apliques reglas de otros negocios.\n`;
   }
 
-  // Criteria by OBJECTIVE
-  if (objetivo && CRITERIOS_POR_OBJETIVO[objetivo]) {
-    context += `\n${CRITERIOS_POR_OBJETIVO[objetivo]}\n`;
+  // Only apply internal rubrics/StoryBrand for internal businesses
+  if (isInternal) {
+    context += `\n${STORYBRAND_HISPANO}\n`;
+
+    if (tipo === 'video') {
+      context += `\n${RUBRICA_VIDEO}\n`;
+      context += `\n${TIPOS_VIDEO}\n`;
+    } else if (tipo === 'imagen' || tipo === 'plantilla') {
+      context += `\n${RUBRICA_IMAGEN}\n`;
+    } else if (tipo === 'email') {
+      context += `\n${RUBRICA_EMAIL}\n`;
+    } else if (tipo === 'presentacion') {
+      context += `\n${RUBRICA_PRESENTACION}\n`;
+    }
+
+    if (objetivo && CRITERIOS_POR_OBJETIVO[objetivo]) {
+      context += `\n${CRITERIOS_POR_OBJETIVO[objetivo]}\n`;
+    }
   }
 
   // Load admin-created KB entries from database
@@ -372,13 +390,25 @@ async function buildKnowledgeContext(submission, pool) {
       if (tipo === 'email') relevantCategorias.push('email_marketing');
       relevantCategorias.push('copies'); // copies always relevant
 
-      const kbResult = await pool.query(
-        `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
-         WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
-         AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
-         ORDER BY updated_at DESC`,
-        [negocioName, relevantCategorias]
-      );
+      // Internal businesses get their KB + global entries
+      // External businesses get ONLY their own KB entries (strict isolation)
+      let kbResult;
+      if (isInternal) {
+        kbResult = await pool.query(
+          `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+           WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
+           AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
+           ORDER BY updated_at DESC`,
+          [negocioName, relevantCategorias]
+        );
+      } else {
+        kbResult = await pool.query(
+          `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+           WHERE negocio = $1
+           ORDER BY updated_at DESC`,
+          [negocioName]
+        );
+      }
       if (kbResult.rows.length > 0) {
         context += `\n\nREGLAS ADICIONALES DEL ADMIN (Base de Conocimiento):\n`;
         for (const entry of kbResult.rows) {
