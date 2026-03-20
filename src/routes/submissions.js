@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { authenticate } = require('../middleware/auth');
 const { analyzeSubmission } = require('../services/ai-router');
-const { getApiKey } = require('../services/gemini');
+const config = require('../config');
 
 const router = express.Router();
 
@@ -13,12 +13,62 @@ function getEstadoByScore(score) {
   return score >= ADMIN_REVIEW_THRESHOLD ? 'evaluado' : 'rechazado_ai';
 }
 
-// Multer for file uploads (in-memory, max 20MB)
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+// Multer for file uploads (in-memory, max 50MB for videos)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-// GET /submissions/gemini-key - Frontend gets key to upload directly to Gemini
-router.get('/gemini-key', authenticate, (req, res) => {
-  res.json({ key: getApiKey() });
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
+
+// POST /submissions/gemini-upload - Proxy upload to Gemini (key never leaves server)
+router.post('/gemini-upload', authenticate, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'File is required' });
+
+    const key = config.geminiApiKey;
+    if (!key) return res.status(500).json({ error: 'Gemini not configured' });
+
+    console.log(`[Gemini Proxy] Uploading ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB, ${req.file.mimetype})`);
+
+    // Upload to Gemini
+    const uploadRes = await fetch(`${GEMINI_BASE}/upload/v1beta/files?key=${key}`, {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Command': 'start, upload, finalize',
+        'X-Goog-Upload-Header-Content-Length': String(req.file.size),
+        'X-Goog-Upload-Header-Content-Type': req.file.mimetype,
+        'Content-Type': req.file.mimetype,
+      },
+      body: req.file.buffer,
+    });
+
+    if (!uploadRes.ok) {
+      const err = await uploadRes.text();
+      console.error(`[Gemini Proxy] Upload failed: ${err.substring(0, 200)}`);
+      return res.status(502).json({ error: 'Error al subir archivo' });
+    }
+
+    const uploadData = await uploadRes.json();
+    const geminiFile = uploadData.file;
+    console.log(`[Gemini Proxy] Uploaded: ${geminiFile.name}, state: ${geminiFile.state}`);
+
+    // Poll until ACTIVE if processing
+    if (geminiFile.state === 'PROCESSING') {
+      let state = geminiFile.state;
+      let attempts = 0;
+      while (state === 'PROCESSING' && attempts < 60) {
+        await new Promise(r => setTimeout(r, 3000));
+        attempts++;
+        const pollRes = await fetch(`${GEMINI_BASE}/v1beta/${geminiFile.name}?key=${key}`);
+        if (!pollRes.ok) break;
+        const pollData = await pollRes.json();
+        state = pollData.state;
+      }
+      if (state !== 'ACTIVE') {
+        return res.status(502).json({ error: 'El archivo no se proceso correctamente' });
+      }
+    }
+
+    res.json({ uri: geminiFile.uri, name: geminiFile.name });
+  } catch (error) { next(error); }
 });
 
 // POST /submissions/upload - Upload file directly for Claude analysis (non-video)
