@@ -55,9 +55,9 @@ async function analyzeSubmission(submission, imageBase64, imageMimeType) {
 
   console.log(`[AI Router] tipo=${tipo}, hasBase64=${!!imageBase64}, hasGeminiURI=${!!submission.gemini_file_uri}`);
 
-  // ===== RULE 1: Videos -> Gemini =====
-  if (tipo === 'video') {
-    console.log(`[AI Router] Video -> Gemini`);
+  // ===== RULE 1: Videos & Presentations -> Gemini =====
+  if (tipo === 'video' || (tipo === 'presentacion' && submission.gemini_file_uri)) {
+    console.log(`[AI Router] ${tipo} -> Gemini`);
     return await analyzeWithGemini(submission);
   }
 

@@ -85,6 +85,14 @@ async function runMigrations() {
       await pool.query(migration);
       console.log('Migration 003 complete!');
     }
+    // Migration 004: Add rechazado_ai to estado check constraint
+    try {
+      await pool.query(`
+        ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_estado_check;
+        ALTER TABLE submissions ADD CONSTRAINT submissions_estado_check
+          CHECK (estado IN ('analizando', 'evaluado', 'aprobado', 'cambios', 'rechazado', 'rechazado_ai', 'error'));
+      `);
+    } catch (e) { /* constraint may already be correct */ }
   } catch (err) {
     console.error('Migration error:', err.message);
   }
