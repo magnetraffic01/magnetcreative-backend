@@ -6,23 +6,28 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Clean text for PostgreSQL (remove null bytes and non-printable chars)
+function cleanText(text) {
+  return text.replace(/\x00/g, '').replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
+}
+
 // Extract text from uploaded document
 async function extractText(file) {
   const mime = file.mimetype;
+  let text = '';
   if (mime === 'application/pdf') {
     const data = await pdfParse(file.buffer);
-    return data.text;
-  }
-  if (mime === 'text/plain' || mime === 'text/csv' || mime === 'text/markdown') {
-    return file.buffer.toString('utf8');
-  }
-  if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    text = data.text;
+  } else if (mime === 'text/plain' || mime === 'text/csv' || mime === 'text/markdown') {
+    text = file.buffer.toString('utf8');
+  } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
       mime === 'application/msword') {
-    // For DOCX, extract raw text (basic approach - strips XML tags)
     const raw = file.buffer.toString('utf8');
-    return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    text = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  } else {
+    text = file.buffer.toString('utf8');
   }
-  return file.buffer.toString('utf8');
+  return cleanText(text);
 }
 
 // GET /knowledge-base - List all KB entries
