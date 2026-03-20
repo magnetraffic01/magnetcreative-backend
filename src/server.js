@@ -87,12 +87,24 @@ async function runMigrations() {
     }
     // Migration 004: Add rechazado_ai to estado check constraint
     try {
-      await pool.query(`
-        ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_estado_check;
-        ALTER TABLE submissions ADD CONSTRAINT submissions_estado_check
-          CHECK (estado IN ('analizando', 'evaluado', 'aprobado', 'cambios', 'rechazado', 'rechazado_ai', 'error'));
+      // Find and drop any check constraint on estado column
+      const constraints = await pool.query(`
+        SELECT con.conname FROM pg_constraint con
+        JOIN pg_attribute att ON att.attnum = ANY(con.conkey) AND att.attrelid = con.conrelid
+        WHERE con.conrelid = 'submissions'::regclass AND att.attname = 'estado' AND con.contype = 'c'
       `);
-    } catch (e) { /* constraint may already be correct */ }
+      for (const row of constraints.rows) {
+        await pool.query(`ALTER TABLE submissions DROP CONSTRAINT IF EXISTS "${row.conname}"`);
+        console.log(`[Migration 004] Dropped constraint: ${row.conname}`);
+      }
+      await pool.query(`
+        ALTER TABLE submissions ADD CONSTRAINT submissions_estado_check
+          CHECK (estado IN ('analizando', 'evaluado', 'aprobado', 'cambios', 'rechazado', 'rechazado_ai', 'error'))
+      `);
+      console.log('[Migration 004] Estado constraint updated with rechazado_ai');
+    } catch (e) {
+      console.error('[Migration 004] Error:', e.message);
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }
