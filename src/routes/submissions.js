@@ -71,6 +71,11 @@ router.post('/gemini-upload', authenticate, upload.single('file'), async (req, r
   } catch (error) { next(error); }
 });
 
+// GET /submissions/gemini-key - Legacy fallback (deprecated, use gemini-upload proxy)
+router.get('/gemini-key', authenticate, (req, res) => {
+  res.json({ key: config.geminiApiKey });
+});
+
 // POST /submissions/upload - Upload file directly for Claude analysis (non-video)
 router.post('/upload', authenticate, upload.single('file'), async (req, res, next) => {
   try {
