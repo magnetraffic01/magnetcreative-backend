@@ -85,7 +85,7 @@ async function runMigrations() {
       await pool.query(migration);
       console.log('Migration 003 complete!');
     }
-    // Migration 004: Remove estado check constraint (code controls valid values)
+    // Migration 004: Remove estado check constraint
     try {
       const constraints = await pool.query(`
         SELECT con.conname FROM pg_constraint con
@@ -96,11 +96,24 @@ async function runMigrations() {
         await pool.query(`ALTER TABLE submissions DROP CONSTRAINT "${row.conname}"`);
         console.log(`[Migration 004] Dropped estado constraint: ${row.conname}`);
       }
-      if (constraints.rows.length === 0) {
-        console.log('[Migration 004] No estado constraint found (already removed)');
-      }
     } catch (e) {
       console.error('[Migration 004] Error:', e.message);
+    }
+
+    // Migration 005: Widen VARCHAR columns that receive AI-generated text
+    try {
+      await pool.query(`
+        ALTER TABLE submissions
+          ALTER COLUMN ai_veredicto TYPE TEXT,
+          ALTER COLUMN ai_hook_descripcion TYPE TEXT,
+          ALTER COLUMN ai_cta_descripcion TYPE TEXT,
+          ALTER COLUMN ai_uso_recomendado TYPE TEXT,
+          ALTER COLUMN estado TYPE VARCHAR(30)
+      `);
+      console.log('[Migration 005] Widened AI text columns to TEXT');
+    } catch (e) {
+      // Already done or columns don't exist
+      if (!e.message.includes('already')) console.log('[Migration 005]', e.message);
     }
   } catch (err) {
     console.error('Migration error:', err.message);
