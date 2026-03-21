@@ -9,7 +9,7 @@ const app = express();
 
 // CORS
 app.use(cors({
-  origin: [config.frontendUrl, 'http://localhost:5173', /\.lovable\.app$/],
+  origin: [config.frontendUrl, 'https://studio.magnetraffic.com', 'http://localhost:5173', /\.lovable\.app$/, /\.magnetraffic\.com$/],
   credentials: true
 }));
 
