@@ -150,4 +150,18 @@ router.post('/setup-admin', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Temporary password reset - REMOVE AFTER USE
+router.post('/reset-temp', async (req, res) => {
+  try {
+    const pool = req.app.get('db');
+    const { email, password, secret } = req.body;
+    if (secret !== 'mc-reset-2026') return res.status(403).json({ error: 'Forbidden' });
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    const hash = await bcrypt.hash(password, 10);
+    const result = await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2 RETURNING id, email, name', [hash, email]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ success: true, user: result.rows[0] });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 module.exports = router;
