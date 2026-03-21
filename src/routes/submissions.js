@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { authenticate } = require('../middleware/auth');
 const { analyzeSubmission } = require('../services/ai-router');
+const { dispatchToN8n } = require('../services/webhook');
 const config = require('../config');
 
 const router = express.Router();
@@ -15,6 +16,43 @@ function getEstadoByScore(score) {
 
 // Multer for file uploads (in-memory, max 50MB for videos)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+// Try n8n async first, fallback to sync analysis
+async function analyzeOrDispatch(submission, pool, imageBase64, imageMimeType) {
+  // Try n8n dispatch (async)
+  const dispatched = await dispatchToN8n(submission, pool);
+  if (dispatched) {
+    // n8n will process and call back — return submission as-is (estado=analizando)
+    const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
+    return { async: true, submission: result.rows[0] };
+  }
+
+  // Fallback: sync analysis (original behavior)
+  const analysis = await analyzeSubmission(submission, imageBase64, imageMimeType);
+  const finalScore = analysis.score || 50;
+  const estado = getEstadoByScore(finalScore);
+
+  await pool.query(`
+    UPDATE submissions SET
+      estado = $13,
+      ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
+      ai_hook_presente = $4, ai_hook_descripcion = $5,
+      ai_cta_presente = $6, ai_cta_descripcion = $7,
+      ai_fortalezas = $8, ai_problemas = $9, ai_recomendaciones = $10,
+      ai_uso_recomendado = $11, ai_analyzed_at = NOW(), updated_at = NOW()
+    WHERE id = $12
+  `, [
+    finalScore, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
+    analysis.hook_presente ?? analysis.hook_primeros_3s ?? null, analysis.hook_descripcion || null,
+    analysis.cta_presente ?? null, analysis.cta_descripcion || null,
+    JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
+    JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
+    submission.id, estado
+  ]);
+
+  const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
+  return { async: false, submission: result.rows[0] };
+}
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 
@@ -114,37 +152,11 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 
     console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), hasFile: ${!!imageBase64}, objetivo: ${objetivo || 'none'}`);
 
-    // Attach db pool for knowledge base queries
     submission._dbPool = pool;
 
-    // Analyze with AI
     try {
-      const analysis = await analyzeSubmission(submission, imageBase64, imageMimeType);
-
-      const finalScore = analysis.score || 50;
-      const estado = getEstadoByScore(finalScore);
-
-      await pool.query(`
-        UPDATE submissions SET
-          estado = $13,
-          ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
-          ai_hook_presente = $4, ai_hook_descripcion = $5,
-          ai_cta_presente = $6, ai_cta_descripcion = $7,
-          ai_fortalezas = $8, ai_problemas = $9, ai_recomendaciones = $10,
-          ai_uso_recomendado = $11, ai_analyzed_at = NOW(), updated_at = NOW()
-        WHERE id = $12
-      `, [
-        analysis.score || 50, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
-        analysis.hook_presente ?? analysis.hook_primeros_3s ?? null, analysis.hook_descripcion || null,
-        analysis.cta_presente ?? null, analysis.cta_descripcion || null,
-        JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
-        JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
-        submission.id, estado
-      ]);
-
-      const updated = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
-      res.json({ submission: updated.rows[0] });
-
+      const result2 = await analyzeOrDispatch(submission, pool, imageBase64, imageMimeType);
+      res.json({ submission: result2.submission, async: result2.async });
     } catch (aiErr) {
       console.error('AI analysis error:', aiErr.message);
       await pool.query("UPDATE submissions SET estado = 'error' WHERE id = $1", [submission.id]);
@@ -178,32 +190,8 @@ router.post('/', authenticate, async (req, res, next) => {
     console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), objetivo: ${objetivo || 'none'}, Gemini URI: ${gemini_file_uri || 'none'}`);
 
     try {
-      const analysis = await analyzeSubmission(submission, null, null);
-
-      const finalScore = analysis.score || 50;
-      const estado = getEstadoByScore(finalScore);
-
-      await pool.query(`
-        UPDATE submissions SET
-          estado = $13,
-          ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
-          ai_hook_presente = $4, ai_hook_descripcion = $5,
-          ai_cta_presente = $6, ai_cta_descripcion = $7,
-          ai_fortalezas = $8, ai_problemas = $9, ai_recomendaciones = $10,
-          ai_uso_recomendado = $11, ai_analyzed_at = NOW(), updated_at = NOW()
-        WHERE id = $12
-      `, [
-        analysis.score || 50, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
-        analysis.hook_presente ?? analysis.hook_primeros_3s ?? null, analysis.hook_descripcion || null,
-        analysis.cta_presente ?? null, analysis.cta_descripcion || null,
-        JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
-        JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
-        submission.id, estado
-      ]);
-
-      const updated = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
-      res.json({ submission: updated.rows[0] });
-
+      const result2 = await analyzeOrDispatch(submission, pool, null, null);
+      res.json({ submission: result2.submission, async: result2.async });
     } catch (aiErr) {
       console.error('AI analysis error:', aiErr.message);
       await pool.query("UPDATE submissions SET estado = 'error' WHERE id = $1", [submission.id]);
@@ -233,28 +221,9 @@ router.post('/email', authenticate, async (req, res, next) => {
     submission.objetivo = objetivo;
     submission._dbPool = pool;
     console.log(`[Submission] Created email #${submission.id}: ${titulo}, objetivo: ${objetivo || 'none'}`);
-    const analysis = await analyzeSubmission(submission, null, null);
 
-    const finalScore = analysis.score || 50;
-    const estado = getEstadoByScore(finalScore);
-
-    await pool.query(`
-      UPDATE submissions SET
-        estado = $10,
-        ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
-        ai_cta_presente = $4, ai_cta_descripcion = $5,
-        ai_fortalezas = $6, ai_problemas = $7, ai_recomendaciones = $8,
-        ai_analyzed_at = NOW(), updated_at = NOW()
-      WHERE id = $9
-    `, [
-      finalScore, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
-      analysis.cta_presente ?? null, analysis.cta_descripcion || null,
-      JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
-      JSON.stringify(analysis.recomendaciones || []), submission.id, estado
-    ]);
-
-    const updated = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
-    res.json({ submission: updated.rows[0] });
+    const result2 = await analyzeOrDispatch(submission, pool, null, null);
+    res.json({ submission: result2.submission, async: result2.async });
 
   } catch (error) { next(error); }
 });

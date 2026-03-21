@@ -123,6 +123,7 @@ async function runMigrations() {
 // Routes
 app.use('/auth', require('./routes/auth'));
 app.use('/submissions', require('./routes/submissions'));
+app.use('/submissions', require('./routes/webhook-callback'));
 app.use('/submissions', require('./routes/chat'));
 app.use('/admin', require('./routes/admin'));
 app.use('/knowledge-base', require('./routes/knowledge-base'));
