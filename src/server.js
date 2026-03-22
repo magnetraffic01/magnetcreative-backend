@@ -124,6 +124,7 @@ async function runMigrations() {
 app.use('/auth', require('./routes/auth'));
 app.use('/submissions', require('./routes/submissions'));
 app.use('/submissions', require('./routes/webhook-callback'));
+app.use('/submissions', require('./routes/async-analyze'));
 app.use('/submissions', require('./routes/chat'));
 app.use('/admin', require('./routes/admin'));
 app.use('/knowledge-base', require('./routes/knowledge-base'));
