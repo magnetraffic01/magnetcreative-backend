@@ -8,7 +8,8 @@ const NEGOCIOS = {
     tono: 'Cercano, empoderador, profesional, familiar. StoryBrand: el CLIENTE es el heroe, TreboLife es el GUIA. Emocion primero, datos despues. NUNCA decir "seguro" o "insurance" o "cobertura medica" - SIEMPRE decir "membresia de descuentos de salud".',
     productos: 'Trebol Dental ($14.99/mes ind, $29.99 familia): dental Careington +100K dentistas, Vision VSP +40K, Farmacia GetMoreRx hasta 95% desc. Trebol Safe ($24.99/mes ind, $39.99 familia, MAS POPULAR): todo Dental + DialCare telemedicina 24/7 $0/consulta ilimitada + DirectLabs +3000 labs 10-80% desc. Trebol Health Plus ($29.99/mes ind, $44.99 familia): todo Safe + medico primario virtual para condiciones cronicas. Todos: $30 activacion, garantia 30 dias, familia hasta 7 personas.',
     diferenciador: 'Sin SSN requerido, activacion inmediata, sin periodo de espera, sin restriccion condiciones preexistentes, sin verificacion credito, familia incluida, servicio en espanol, telemedicina 24/7/365, respaldado por Careington (45+ anos). Ahorro: dental $300-800/ano, telemedicina vs ER $65 vs $400+, labs 10-80%, medicinas genericas hasta 95%.',
-    visual: 'Colores: verde oscuro #1A6E3E (fondos hero, CTA), verde medio #2D9E5F (iconos), verde claro #E8F5EE, crema #FFFCF5, dorado #D4A017 (badges Best Value). Imagenes: estilo 3D Pixar/Disney, personajes hispanos (piel morena/oliva, pelo oscuro), escenas domesticas y emocionales, iluminacion calida. PROHIBIDO: familias no-hispanas, fondos blancos de estudio, logos de seguros, azul/rojo dominante.',
+    visual: 'Colores: verde oscuro #1A6E3E (fondos hero, CTA), verde medio #2D9E5F (iconos, checkmarks), verde claro #E8F5EE (tarjetas), crema #FFFCF5 (fondos claros), dorado #D4A017 (badges Best Value, anclas precio), verde muy oscuro #0D1F13 (slides transformacion), rojo fondo #FFF0F0 (columna Sin Plan), rojo texto #C0392B (advertencia). Imagenes: estilo 3D Pixar/Disney, personajes hispanos (piel morena/oliva, pelo oscuro), escenas domesticas y emocionales, iluminacion calida. Tipografia: titulos 48-64pt bold, secciones 28-36pt, cuerpo 18-22pt, precios 24-32pt bold, disclaimer 10-12pt. PROHIBIDO: familias no-hispanas, fondos blancos de estudio, logos de seguros, azul/rojo dominante, personas en poses corporativas, imagenes genericas de doctor sonriendo sin contexto familiar.',
+    reglas_diseno_v3: 'REGLAS STORYBRAND v3 PERMANENTES: 1) Slide 2: SIEMPRE abrir con emocion/dolor INTERNO, luego datos. 2) Slide 3: Titulo centrado en el CLIENTE (Esto es lo que tienes), no en la empresa. 3) Slide 6: Codigos tecnicos como secreto del insider, no como amenaza. 4) Slide 9: Transformacion EMOCIONAL y humana, no solo economica. Usar la palabra "por fin". 5) Slide 10: ANCLA de precio ANTES de mostrar planes (1 visita sin plan vs mes completo). 6) Slide 12: 3 pasos SIN URLs, SIN datos tecnicos, verbo de accion directo. 7) REGLA DE ORO: El cliente es Luke Skywalker, TreboLife es Yoda. Cada titulo responde: que gana el cliente?',
     storybrand: 'Headlines aprobados: Dental="Cuanto tiempo llevas aguantando ese dolor de muela porque crees que no puedes pagarlo?" Safe="Son las 2AM. Tu hijo tiene fiebre de 103. A donde vas?" Health Plus="Tienes diabetes, hipertension o colesterol. Necesitas un medico que te conozca." Vision="Tu hijo reprueba. No es que no estudia - es que no puede ver el pizarron." Estructura brochure: 13 slides obligatorias (Hero crisis -> Problema 3 niveles -> Servicios -> Beneficio clave -> Farmacia/Diabetes -> Vision/Labs -> Dental ahorro -> 7 personas 1 precio -> Vida transformada 4 antes/despues -> Precios con ancla -> Sin barreras -> 3 pasos sin friccion -> CTA final + disclaimer legal).',
     urls: 'trebolife.com, trebolife.telemedsimplified.com (activacion)',
     redes: 'Instagram, Facebook, TikTok, WhatsApp (canal principal)'
@@ -273,24 +274,93 @@ EVALUAR:
 
 // Rubrica especifica para IMAGENES
 const RUBRICA_IMAGEN = `
-RUBRICA DE EVALUACION DE IMAGENES (100 PUNTOS):
+RUBRICA DE EVALUACION DE IMAGENES PARA ADS (100 PUNTOS):
 
-1. Impacto Visual Inmediato (15 pts): ¿Captura atencion en menos de 1 segundo? ¿Destaca en el feed?
-2. StoryBrand Adaptado (15 pts): Heroe (cliente), guia (marca), problema, plan, CTA, exito/fracaso
-3. Copy/Texto (15 pts): Legible, conciso, en el idioma correcto, cumple regla de 20% de texto de Meta
-4. CTA y Conversion (12 pts): CTA claro, visible, accionable, con siguiente paso definido
-5. Identidad de Marca (10 pts): Colores, logo, fuentes consistentes con la guia visual del negocio
-6. Calidad Tecnica (10 pts): Resolucion, dimensiones correctas para la plataforma, nitidez
-7. Conexion Cultural (10 pts): Personajes e imagenes que representan la audiencia hispana, sin estereotipos
-8. Adaptacion a Plataforma (8 pts): Dimensiones, formato, y specs correctos para la plataforma destino
-9. Compartibilidad (5 pts): ¿Se compartiria facilmente por WhatsApp/redes?
+1. SCROLL-STOPPING POWER (18 pts):
+   - ¿Captura atencion en menos de 1 segundo? ¿Destaca en el feed?
+   - ¿Tiene UN punto focal dominante? (no multiples elementos compitiendo)
+   - ¿Hay jerarquia visual clara? (primario → secundario → terciario)
+   - ¿Usa contraste estrategico y espacio en blanco?
+   - Si la respuesta es NO a cualquiera: maximo 8/18
+
+2. STORYBRAND VISUAL (15 pts):
+   - El CLIENTE es el heroe (la imagen habla de lo que GANA el cliente, no de la marca)
+   - La marca aparece como GUIA (logo sutil, no invasivo)
+   - Se identifica visualmente un PROBLEMA (externo, interno o filosofico)
+   - Hay un PLAN claro visible
+   - CTA y transformacion de EXITO implicita
+   - Adaptacion cultural hispana: emocion > datos, familia, comunidad, identidad
+
+3. COPY Y TEXTO EN IMAGEN (15 pts):
+   - Texto legible a tamano mobile (fuente minima 24pt equivalente)
+   - Cumple regla de 20% de texto de Meta (si >20%, Meta reduce alcance)
+   - Hook escrito en la imagen que genera emocion/urgencia
+   - Idioma correcto para la audiencia (espanol natural, no traduccion literal)
+   - Headline centrado en el cliente, no en la empresa
+   - PENALIZAR: espanol neutro forzado, "gringo traducido", jerga corporativa
+
+4. CTA Y CONVERSION (12 pts):
+   - CTA claro, visible, con accion DIRECTA ("Cotiza gratis", "Llama ahora", NO "Conoce mas")
+   - Siguiente paso definido (telefono, WhatsApp, formulario)
+   - Boton/enlace visible y grande (mobile-first)
+   - Incluye WhatsApp como canal (critico para audiencia hispana)
+
+5. IDENTIDAD DE MARCA (10 pts):
+   - Colores consistentes con la guia visual del negocio
+   - Logo presente pero NO dominante (guia, no heroe)
+   - Fuentes y estilo coherentes con la marca
+   - TreboLife: verdes (#1A6E3E, #2D9E5F), crema (#FFFCF5), dorado (#D4A017)
+   - Traduce: profesional, bilingue, certificacion visible
+   - FFL/Dental/Salud: empatico, numeros de ahorro grandes
+
+6. CALIDAD TECNICA Y META ADS (10 pts):
+   - Resolucion alta (minimo 1080px en dimension menor)
+   - Dimensiones correctas: 1080x1080 (feed), 1080x1920 (stories/reels), 1200x628 (feed horizontal)
+   - Sin pixelacion, sin marcas de agua, sin logos de herramientas (Canva, etc.)
+   - Colores vibrantes que no se pierdan en modo oscuro del feed
+   - Sin clutter visual que Meta penalizaria
+
+7. CONEXION CULTURAL (8 pts):
+   - Personajes/imagenes que representan a la audiencia hispana
+   - Sin estereotipos culturales
+   - Estilo visual aprobado: ilustracion 3D tipo Pixar/Disney con personajes hispanos (TreboLife)
+   - O fotografia autentica con familias hispanas reales (no stock generico)
+   - PROHIBIDO: familias no-hispanas, fondos blancos de estudio, poses corporativas forzadas
+
+8. TRIGGER EMOCIONAL (7 pts):
+   - La imagen comunica INSTANTANEAMENTE una emocion: seguridad, oportunidad, alivio, pertenencia
+   - El prospecto se ve REFLEJADO en la imagen (aspiracional, no intimidante)
+   - Para TreboLife: crisis nocturna → alivio, dolor dental → solucion, familia protegida
+   - Para Traduce: documento importante → tranquilidad, proceso migratorio → esperanza
+   - Para FFL/Dental: dolor → ahorro real con numeros concretos
+
+9. COMPARTIBILIDAD (5 pts):
+   - ¿Se compartiria facilmente por WhatsApp?
+   - ¿El mensaje se entiende SIN leer la descripcion del ad?
+   - ¿Funciona como imagen standalone?
 
 UMBRALES:
-- 90-100: Publicar inmediatamente
+- 90-100: Publicar inmediatamente - ad de alto rendimiento
 - 80-89: Aprobado con observaciones menores
 - 70-79: Aprobado con cambios recomendados
-- 50-69: Requiere cambios - no publicar
-- 0-49: Rechazado - rehacer
+- 50-69: Requiere cambios - no publicar sin correcciones
+- 0-49: Rechazado - rehacer el creativo
+
+ERRORES CRITICOS QUE DESCUENTAN 15 PTS CADA UNO:
+- Imagen con mas de 20% de texto (Meta reduce alcance drasticamente)
+- CTA vago: "Conoce mas", "Mas informacion" en vez de accion directa
+- No mencionar beneficio principal en la zona visible de la imagen
+- Imagen generica de stock sin conexion emocional con la audiencia
+- Figura humana dominante (>30% del espacio) que distrae de la oferta/CTA en ads de leads
+- Logo de herramientas visibles (Canva, Unsplash, etc.)
+- Dimensiones incorrectas para la plataforma destino
+- Fondo blanco plano sin profundidad visual (parece no-terminado)
+
+METRICAS DE RENDIMIENTO ESPERADAS (para referencia del evaluador):
+- CTR objetivo: 3%+ (promedio industria: 1-2%)
+- Thumb-stop rate: 80%+ en primeros 2 segundos
+- El ad debe funcionar como "sistema predecible de conversion", no como "post bonito"
+- Cada pixel debe tener un proposito. Cada palabra debe mover al prospecto hacia la accion.
 `;
 
 const RUBRICA_EMAIL = `
@@ -344,6 +414,7 @@ async function buildKnowledgeContext(submission, pool) {
     context += `Diferenciador clave: ${negocio.diferenciador}\n`;
 
     if (negocio.visual) context += `Guia visual: ${negocio.visual}\n`;
+    if (negocio.reglas_diseno_v3) context += `Reglas de diseno StoryBrand v3: ${negocio.reglas_diseno_v3}\n`;
     if (negocio.storybrand) context += `StoryBrand del negocio: ${negocio.storybrand}\n`;
     if (negocio.proceso) context += `Proceso: ${negocio.proceso}\n`;
     if (negocio.ahorros) context += `Ejemplos de ahorro: ${negocio.ahorros}\n`;
