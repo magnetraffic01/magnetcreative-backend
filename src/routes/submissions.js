@@ -3,6 +3,7 @@ const multer = require('multer');
 const { authenticate } = require('../middleware/auth');
 const { analyzeSubmission } = require('../services/ai-router');
 const { dispatchToN8n } = require('../services/webhook');
+const { saveFile, getFilePath } = require('../services/file-storage');
 const config = require('../config');
 
 const router = express.Router();
@@ -105,7 +106,15 @@ router.post('/gemini-upload', authenticate, upload.single('file'), async (req, r
       }
     }
 
-    res.json({ uri: geminiFile.uri, name: geminiFile.name });
+    // Also save video to disk for admin download/preview
+    let savedFilename = null;
+    try {
+      savedFilename = saveFile(req.file.buffer, req.file.originalname, `gemini_${Date.now()}`);
+    } catch (saveErr) {
+      console.error('[FileStorage] Failed to save video:', saveErr.message);
+    }
+
+    res.json({ uri: geminiFile.uri, name: geminiFile.name, localFile: savedFilename });
   } catch (error) { next(error); }
 });
 
@@ -138,7 +147,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 
     const submission = result.rows[0];
 
-    // Convert uploaded file to base64 for Claude
+    // Convert uploaded file to base64 for Claude + save to disk for download
     let imageBase64 = null;
     let imageMimeType = null;
     console.log(`[Submission] req.file exists: ${!!req.file}, req.files: ${!!req.files}, content-type: ${req.headers['content-type']}`);
@@ -146,6 +155,18 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
       imageBase64 = req.file.buffer.toString('base64');
       imageMimeType = req.file.mimetype;
       console.log(`[Submission] #${submission.id}: File received (${Math.round(req.file.size / 1024)}KB, ${imageMimeType}, base64 length: ${imageBase64.length})`);
+
+      // Save file to disk for later download/preview
+      try {
+        const savedFilename = saveFile(req.file.buffer, req.file.originalname, submission.id);
+        await pool.query('UPDATE submissions SET archivo_nombre = $1, archivo_size = $2, archivo_url = $3 WHERE id = $4', [
+          req.file.originalname, req.file.size, savedFilename, submission.id
+        ]);
+        submission.archivo_nombre = req.file.originalname;
+        submission.archivo_url = savedFilename;
+      } catch (saveErr) {
+        console.error(`[FileStorage] Failed to save file for #${submission.id}:`, saveErr.message);
+      }
     } else {
       console.log(`[Submission] #${submission.id}: NO FILE RECEIVED - multer did not process any file`);
     }
@@ -254,7 +275,51 @@ router.get('/:id', authenticate, async (req, res, next) => {
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    res.json({ submission: result.rows[0] });
+    const sub = result.rows[0];
+    // Add download URL if file exists on disk
+    if (sub.archivo_url && !sub.archivo_url.startsWith('http')) {
+      sub.file_download_url = `/submissions/${sub.id}/file`;
+    }
+    res.json({ submission: sub });
+  } catch (error) { next(error); }
+});
+
+// GET /submissions/:id/file - Download/stream the uploaded file (authenticated)
+router.get('/:id/file', authenticate, async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const result = await pool.query('SELECT archivo_url, archivo_nombre, tipo FROM submissions WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+
+    const sub = result.rows[0];
+    if (!sub.archivo_url) return res.status(404).json({ error: 'No file associated' });
+
+    // archivo_url stores the local filename on disk
+    const filepath = getFilePath(sub.archivo_url);
+    if (!filepath) return res.status(410).json({ error: 'Archivo expirado (se eliminan despues de 3 dias). Pide al creativo que lo suba de nuevo.' });
+
+    // Set proper content-type based on extension
+    const ext = (sub.archivo_nombre || sub.archivo_url).split('.').pop().toLowerCase();
+    const mimeTypes = {
+      mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo', webm: 'video/webm',
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+      pdf: 'application/pdf'
+    };
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+    // For download parameter, force download instead of inline
+    if (req.query.download === '1') {
+      res.setHeader('Content-Disposition', `attachment; filename="${sub.archivo_nombre || sub.archivo_url}"`);
+    } else {
+      res.setHeader('Content-Disposition', `inline; filename="${sub.archivo_nombre || sub.archivo_url}"`);
+    }
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+
+    // Stream the file (low memory usage)
+    const stream = require('fs').createReadStream(filepath);
+    stream.pipe(res);
+    stream.on('error', () => res.status(500).json({ error: 'Error reading file' }));
   } catch (error) { next(error); }
 });
 

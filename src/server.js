@@ -152,8 +152,12 @@ if (!config.jwtSecret || config.jwtSecret === 'cambiar-en-produccion') {
   process.exit(1);
 }
 
+// File storage cleanup
+const { startCleanupSchedule } = require('./services/file-storage');
+
 // Start
 initDB().then(() => {
+  startCleanupSchedule();
   app.listen(config.port, () => {
     console.log(`MagnetCreative running on port ${config.port}`);
     console.log(`[Config] Claude key: ${config.claudeApiKey ? config.claudeApiKey.substring(0, 15) + '...' + config.claudeApiKey.slice(-6) : 'NOT SET'}`);
