@@ -166,6 +166,13 @@ async function runMigrations() {
       `);
       console.log('Migration 008 complete!');
     }
+    // Migration 009: Add objetivo column
+    const hasObjetivo = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'submissions' AND column_name = 'objetivo')`);
+    if (!hasObjetivo.rows[0].exists) {
+      console.log('Running migration 009: objetivo column...');
+      await pool.query(`ALTER TABLE submissions ADD COLUMN objetivo VARCHAR(50)`);
+      console.log('Migration 009 complete!');
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }

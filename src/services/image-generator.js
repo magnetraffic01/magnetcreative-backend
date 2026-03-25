@@ -292,14 +292,22 @@ async function callOpenAIImageGeneration(promptText) {
         body.response_format = 'b64_json';
       }
 
-      const response = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.openaiApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
+      const controller = new AbortController();
+      const genTimeout = setTimeout(() => controller.abort(), 120000);
+      let response;
+      try {
+        response = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.openaiApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(genTimeout);
+      }
 
       if (!response.ok) {
         const errorText = await response.text();

@@ -551,6 +551,15 @@ async function buildKnowledgeContext(submission, pool) {
   context += `\n- Penaliza si usa palabras prohibidas del negocio o no se alinea con StoryBrand.`;
   context += `\n- Se estricto pero constructivo. El disenador necesita saber EXACTAMENTE que mejorar.\n`;
 
+  // Load auto-learnings from previous evaluations
+  try {
+    const { getLearnings } = require('./learning');
+    const learnings = await getLearnings(pool, negocioName, tipo, submission.objetivo);
+    if (learnings) context += learnings;
+  } catch (e) {
+    // Learning module failure should not break evaluation
+  }
+
   return context;
 }
 

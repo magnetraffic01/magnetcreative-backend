@@ -4,9 +4,26 @@ const { authenticate } = require('../middleware/auth');
 const { analyzeSubmission } = require('../services/ai-router');
 const { dispatchToN8n } = require('../services/webhook');
 const { saveFile, getFilePath } = require('../services/file-storage');
+const { recordLearning } = require('../services/learning');
 const config = require('../config');
 
 const router = express.Router();
+
+// Simple in-memory rate limiter per user
+const rateLimitMap = new Map();
+function rateLimit(userId, action, maxPerHour = 10) {
+  const key = `${userId}:${action}`;
+  const now = Date.now();
+  const hourAgo = now - 3600000;
+
+  if (!rateLimitMap.has(key)) rateLimitMap.set(key, []);
+  const timestamps = rateLimitMap.get(key).filter(t => t > hourAgo);
+  rateLimitMap.set(key, timestamps);
+
+  if (timestamps.length >= maxPerHour) return false;
+  timestamps.push(now);
+  return true;
+}
 
 // Score threshold: >= 70 goes to admin review, < 70 stays with designer
 const ADMIN_REVIEW_THRESHOLD = 70;
@@ -50,6 +67,9 @@ async function analyzeOrDispatch(submission, pool, imageBase64, imageMimeType) {
     JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
     submission.id, estado
   ]);
+
+  // Record learning from this evaluation
+  recordLearning(pool, submission, analysis).catch(() => {});
 
   const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
   return { async: false, submission: result.rows[0] };
@@ -118,14 +138,11 @@ router.post('/gemini-upload', authenticate, upload.single('file'), async (req, r
   } catch (error) { next(error); }
 });
 
-// GET /submissions/gemini-key - Legacy fallback (deprecated, use gemini-upload proxy)
-router.get('/gemini-key', authenticate, (req, res) => {
-  res.json({ key: config.geminiApiKey });
-});
-
 // POST /submissions/upload - Upload file directly for Claude analysis (non-video)
 router.post('/upload', authenticate, upload.single('file'), async (req, res, next) => {
   try {
+    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite de uploads alcanzado. Intenta en 1 hora.' });
+
     const pool = req.app.get('db');
     const { titulo, tipo, negocio, plataforma, descripcion, objetivo, gemini_file_uri } = req.body;
 
@@ -137,12 +154,12 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 
     // Insert submission
     const result = await pool.query(`
-      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, descripcion, gemini_file_uri, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'analizando')
+      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, descripcion, gemini_file_uri, objetivo, estado)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'analizando')
       RETURNING *
-    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', descripcion, gemini_file_uri || null]);
+    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', descripcion, gemini_file_uri || null, objetivo || null]);
 
-    // Attach objetivo for AI context (not stored in DB column yet but passed to AI)
+    // Attach objetivo for AI context
     result.rows[0].objetivo = objetivo;
 
     const submission = result.rows[0];
@@ -190,6 +207,8 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 // POST /submissions - Submit creative (JSON, for videos with Gemini URI)
 router.post('/', authenticate, async (req, res, next) => {
   try {
+    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite de uploads alcanzado. Intenta en 1 hora.' });
+
     const pool = req.app.get('db');
     const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo } = req.body;
 
@@ -200,10 +219,10 @@ router.post('/', authenticate, async (req, res, next) => {
     const finalTipo = tipo || 'video';
 
     const result = await pool.query(`
-      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'analizando')
+      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo, estado)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'analizando')
       RETURNING *
-    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, gemini_file_uri, contenido_email]);
+    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo || null]);
 
     const submission = result.rows[0];
     submission.objetivo = objetivo;
@@ -225,6 +244,8 @@ router.post('/', authenticate, async (req, res, next) => {
 // POST /submissions/email
 router.post('/email', authenticate, async (req, res, next) => {
   try {
+    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite de uploads alcanzado. Intenta en 1 hora.' });
+
     const pool = req.app.get('db');
     const { titulo, negocio, contenido_email, descripcion, objetivo } = req.body;
 
@@ -233,10 +254,10 @@ router.post('/email', authenticate, async (req, res, next) => {
     }
 
     const result = await pool.query(`
-      INSERT INTO submissions (user_id, titulo, tipo, negocio, descripcion, contenido_email, estado)
-      VALUES ($1, $2, 'email', $3, $4, $5, 'analizando')
+      INSERT INTO submissions (user_id, titulo, tipo, negocio, descripcion, contenido_email, objetivo, estado)
+      VALUES ($1, $2, 'email', $3, $4, $5, $6, 'analizando')
       RETURNING *
-    `, [req.user.id, titulo, negocio, descripcion, contenido_email]);
+    `, [req.user.id, titulo, negocio, descripcion, contenido_email, objetivo || null]);
 
     const submission = result.rows[0];
     submission.objetivo = objetivo;
@@ -276,6 +297,9 @@ router.get('/:id', authenticate, async (req, res, next) => {
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (req.user.role !== 'admin' && result.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+    }
     const sub = result.rows[0];
     // Add download URL if file exists on disk
     if (sub.archivo_url && !sub.archivo_url.startsWith('http')) {
@@ -289,8 +313,11 @@ router.get('/:id', authenticate, async (req, res, next) => {
 router.get('/:id/file', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const result = await pool.query('SELECT archivo_url, archivo_nombre, tipo FROM submissions WHERE id = $1', [req.params.id]);
+    const result = await pool.query('SELECT archivo_url, archivo_nombre, tipo, user_id FROM submissions WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (req.user.role !== 'admin' && result.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+    }
 
     const sub = result.rows[0];
     if (!sub.archivo_url) return res.status(404).json({ error: 'No file associated' });
@@ -328,11 +355,15 @@ router.get('/:id/file', authenticate, async (req, res, next) => {
 router.post('/:id/archive', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
+    const check = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [req.params.id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (req.user.role !== 'admin' && check.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+    }
     const result = await pool.query(
       'UPDATE submissions SET archived = true, archived_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *',
       [req.params.id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ submission: result.rows[0] });
   } catch (error) { next(error); }
 });
@@ -341,11 +372,15 @@ router.post('/:id/archive', authenticate, async (req, res, next) => {
 router.post('/:id/unarchive', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
+    const check = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [req.params.id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (req.user.role !== 'admin' && check.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+    }
     const result = await pool.query(
       'UPDATE submissions SET archived = false, archived_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *',
       [req.params.id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ submission: result.rows[0] });
   } catch (error) { next(error); }
 });
@@ -353,6 +388,8 @@ router.post('/:id/unarchive', authenticate, async (req, res, next) => {
 // POST /submissions/:id/resubmit - Upload new version and re-evaluate
 router.post('/:id/resubmit', authenticate, upload.single('file'), async (req, res, next) => {
   try {
+    if (!rateLimit(req.user.id, 'resubmit', 10)) return res.status(429).json({ error: 'Limite de resubmits alcanzado. Intenta en 1 hora.' });
+
     const pool = req.app.get('db');
     const submissionId = req.params.id;
 

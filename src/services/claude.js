@@ -63,20 +63,28 @@ async function analyzeWithClaude(submission, imageBase64, imageMimeType) {
 
   console.log(`[Claude] Analyzing: ${submission.titulo} (${tipo})`);
 
-  const response = await fetch(CLAUDE_URL, {
-    method: 'POST',
-    headers: {
-      'x-api-key': config.claudeApiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      system: systemPrompt,
-      messages: [{ role: 'user', content }]
-    })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+  let response;
+  try {
+    response = await fetch(CLAUDE_URL, {
+      method: 'POST',
+      headers: {
+        'x-api-key': config.claudeApiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content }]
+      }),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const data = await response.json();
 
