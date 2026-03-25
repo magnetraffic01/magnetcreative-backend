@@ -1,6 +1,52 @@
 const config = require('../config');
 const { saveFile } = require('./file-storage');
 
+// Brand identity per business for coherent image generation
+const BRAND_CONTEXT = {
+  TrebolLife: {
+    colors: 'Green palette: dark green #1A6E3E, medium green #2D9E5F, light green #E8F5EE, cream #FFFCF5, gold #D4A017 for badges. NO blue or red.',
+    style: 'Warm, family-oriented. Hispanic families (morena/olive skin, dark hair). Domestic/emotional scenes. Warm lighting. 3D Pixar/Disney illustration style preferred. NO corporate stock photos, NO white studio backgrounds.',
+    tone: 'Empowering, warm, family-first. The CLIENT is the hero (StoryBrand). Headlines about what the client GAINS, not about how good the product is.',
+    rules: 'NEVER say "seguro" or "insurance". It is a "membresia de descuentos de salud". Show real savings with numbers. Emotion first, data second.'
+  },
+  Traduce: {
+    colors: 'Professional blues and whites. Clean, trustworthy. Accent with warm gold/orange.',
+    style: 'Clean, professional, trustworthy. Show documents, certifications, official stamps. American flag elements for immigration context. Hispanic people in professional/hopeful settings.',
+    tone: 'Warm, reassuring. "We know this document represents something important to you." Personal, uses "tu".',
+    rules: 'Emphasize: 100% acceptance rate, certified translations, USCIS accepted. Show price ($13.99/page). Include phone number or WhatsApp.'
+  },
+  MagneTraffic: {
+    colors: 'Dark blue #1a365d primary, gold #c8a45a secondary. Professional tech look.',
+    style: 'Data-driven, professional, modern. Dashboard/analytics visual metaphors. Clean typography.',
+    tone: 'Direct, professional, results-oriented. No exaggeration. "Real leads, not recycled lists."',
+    rules: 'Show lead prices ($0.99/lead). Emphasize WhatsApp validated, opt-in verified, same-day delivery.'
+  },
+  FFL: {
+    colors: 'Professional blues, greens for health. Warm and empathetic.',
+    style: 'Empathetic, caring. Hispanic families in healthcare settings. Show real savings numbers.',
+    tone: 'Empathy first - validate emotion/pain. Solution in 1-2 sentences. Spanish first.',
+    rules: 'NEVER mention carrier names (Careington, 1Dental). Show savings: dental cleaning $135→$33 (76% off). Entry from $99/year.'
+  },
+  Dental: {
+    colors: 'Fresh blues and whites. Clean, healthcare feel with accessible vibe.',
+    style: 'Accessible, friendly. Focus on real savings with big numbers. Hispanic families.',
+    tone: 'Friendly, focused on concrete savings. Empathy with dental pain.',
+    rules: 'Show before/after prices. Immediate activation, no SSN needed, no credit check. 75K+ dentists.'
+  },
+  Salud: {
+    colors: 'Healthcare blues and greens. Professional but accessible.',
+    style: 'Informative, reassuring. Families accessing healthcare. Diverse Hispanic representation.',
+    tone: 'Informative, reassuring. Options for everyone regardless of immigration status.',
+    rules: 'Plans for ALL regardless of immigration status. Spanish-first. Help with ACA subsidies.'
+  },
+  BankyBlendz: {
+    colors: 'Urban, bold. Black, gold, modern contrast.',
+    style: 'Authentic, visual, modern, urban. Show transformations. High contrast, eye-catching.',
+    tone: 'Confident, stylish. Let the work speak for itself.',
+    rules: 'Focus on before/after transformations. TikTok and Instagram optimized.'
+  }
+};
+
 /**
  * Generate an improved image using GPT-4o based on AI recommendations
  */
@@ -18,7 +64,8 @@ async function generateImprovedImage(submission, recommendations, pool) {
     fortalezas,
     problemas,
     recomendaciones,
-    objetivo: submission.objetivo || submission.descripcion
+    objetivo: submission.objetivo || submission.descripcion,
+    resumen: submission.ai_resumen
   });
 
   console.log(`[Generation] Generating improved image for submission #${submission.id}`);
@@ -124,48 +171,67 @@ async function generateIteration(submission, versionId, clientFeedback, pool) {
 /**
  * Build a detailed prompt for initial generation from AI recommendations
  */
-function buildPrompt({ negocio, plataforma, titulo, descripcion, tipo, fortalezas, problemas, recomendaciones, objetivo }) {
+function buildPrompt({ negocio, plataforma, titulo, descripcion, tipo, fortalezas, problemas, recomendaciones, objetivo, resumen }) {
   const platformSpecs = {
-    facebook: 'Facebook ad creative, optimized for feed (1080x1080 or 1200x628)',
-    instagram: 'Instagram ad creative, optimized for feed (1080x1080) or stories (1080x1920)',
-    tiktok: 'TikTok ad creative, vertical format, bold and eye-catching',
-    google: 'Google Display ad creative, clean and professional',
-    youtube: 'YouTube ad thumbnail or display creative',
-    email: 'Email marketing header image, professional and branded'
+    facebook: '1080x1080 square for Facebook feed. Mobile-first. Less than 20% text (Meta rule).',
+    instagram: '1080x1080 square for Instagram feed. Visual-first, minimal text, scroll-stopping.',
+    tiktok: '1080x1920 vertical for TikTok. Bold, high contrast, eye-catching, urban feel.',
+    email: '600px wide email header. Clean, professional, one clear CTA.',
+    otro: 'General marketing creative. Professional, clear hierarchy.'
   };
 
-  const platformContext = platformSpecs[plataforma] || `${plataforma} ad creative`;
+  const brand = BRAND_CONTEXT[negocio] || BRAND_CONTEXT['MagneTraffic'];
+  const platformContext = platformSpecs[plataforma?.toLowerCase()] || platformSpecs['otro'];
 
-  let prompt = `Create a professional ${platformContext} for a business called "${negocio}".
+  let prompt = `You are an expert advertising creative designer. Create a HIGH-CONVERTING ad image.
 
-Title/Concept: ${titulo}
-${descripcion ? `Description: ${descripcion}` : ''}
-${objetivo ? `Objective: ${objetivo}` : ''}
-Type: ${tipo || 'imagen'}
+BUSINESS: ${negocio}
+CONCEPT: ${titulo}
+${descripcion ? `CONTEXT: ${descripcion}` : ''}
+OBJECTIVE: ${objetivo || 'leads'}
+PLATFORM: ${platformContext}
 
-This is an IMPROVED version of an existing creative. `;
+BRAND IDENTITY (MUST FOLLOW):
+- Colors: ${brand.colors}
+- Visual style: ${brand.style}
+- Tone: ${brand.tone}
+- Rules: ${brand.rules}
+
+${resumen ? `AI EVALUATION SUMMARY OF ORIGINAL: ${resumen}` : ''}`;
 
   if (fortalezas.length > 0) {
-    prompt += `\n\nSTRENGTHS TO KEEP (these worked well in the original):
-${fortalezas.map((f, i) => `${i + 1}. ${f}`).join('\n')}`;
+    prompt += `\n\nKEEP THESE (they work well):
+${fortalezas.slice(0, 5).map((f, i) => `- ${f}`).join('\n')}`;
   }
 
   if (problemas.length > 0) {
-    prompt += `\n\nPROBLEMS TO FIX (these need improvement):
-${problemas.map((p, i) => `${i + 1}. ${p}`).join('\n')}`;
+    prompt += `\n\nFIX THESE PROBLEMS:
+${problemas.slice(0, 5).map((p, i) => `- ${p}`).join('\n')}`;
   }
 
   if (recomendaciones.length > 0) {
-    prompt += `\n\nRECOMMENDATIONS TO IMPLEMENT:
-${recomendaciones.map((r, i) => {
+    prompt += `\n\nAPPLY THESE CHANGES:
+${recomendaciones.slice(0, 5).map((r) => {
   if (typeof r === 'object' && r !== null) {
-    return `${i + 1}. [${r.area || r.titulo || ''}] ${r.detalle || r.descripcion || ''} (${r.accion || 'cambiar'})`;
+    return `- ${r.area || r.titulo || 'General'}: ${r.detalle || r.descripcion || ''} → ${r.accion || 'cambiar'}`;
   }
-  return `${i + 1}. ${r}`;
+  return `- ${r}`;
 }).join('\n')}`;
   }
 
-  prompt += `\n\nIMPORTANT: Create a high-quality, professional advertising creative. Use clear typography, strong visual hierarchy, and appropriate brand colors. The image should be compelling and drive action. Do NOT include any watermarks or AI disclaimers.`;
+  prompt += `
+
+DESIGN REQUIREMENTS:
+1. ONE dominant focal point - no visual clutter
+2. Clear visual hierarchy: headline → benefit → CTA
+3. Text must be LARGE and LEGIBLE on mobile (imagine viewing on a phone)
+4. Strong CTA button or text that drives action (NOT "learn more" - use "Call now", "Get quote", etc.)
+5. Brand colors MUST match the palette above
+6. If targeting Hispanic audience: warm, family, community imagery - NO stereotypes
+7. Professional quality - this is a PAID advertisement
+8. NO watermarks, NO AI disclaimers, NO stock photo feel
+9. Include contact method if relevant (phone, WhatsApp)
+10. The image must work as a STANDALONE ad - message clear without reading description`;
 
   return prompt;
 }
