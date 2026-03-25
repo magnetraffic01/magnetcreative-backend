@@ -192,44 +192,91 @@ IMPORTANT: Keep what worked from the previous version but apply the client's fee
 }
 
 /**
- * Call OpenAI GPT-4o image generation API
+ * Call OpenAI image generation API
+ * Tries gpt-image-1 first, falls back to dall-e-3
  */
 async function callOpenAIImageGeneration(promptText) {
   if (!config.openaiApiKey) {
-    throw new Error('OpenAI API key not configured');
+    throw new Error('OpenAI API key not configured. Add OPENAI_API_KEY to environment variables.');
   }
 
-  const response = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.openaiApiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'gpt-image-1',
-      prompt: promptText,
-      n: 1,
-      size: '1024x1024',
-      quality: 'high',
-      response_format: 'b64_json'
-    })
-  });
+  // Truncate prompt to 4000 chars (DALL-E limit)
+  const safePrompt = promptText.substring(0, 4000);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[Generation] OpenAI API error: ${response.status} - ${errorText.substring(0, 300)}`);
-    throw new Error(`OpenAI image generation failed: ${response.status}`);
+  // Try models in order: gpt-image-1, dall-e-3
+  const models = ['gpt-image-1', 'dall-e-3'];
+
+  for (const model of models) {
+    try {
+      console.log(`[Generation] Trying model: ${model}`);
+
+      const body = {
+        model,
+        prompt: safePrompt,
+        n: 1,
+        size: '1024x1024',
+      };
+
+      // gpt-image-1 supports b64_json, dall-e-3 uses url
+      if (model === 'gpt-image-1') {
+        body.quality = 'high';
+        body.response_format = 'b64_json';
+      } else {
+        body.quality = 'standard';
+        body.response_format = 'b64_json';
+      }
+
+      const response = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.openaiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Generation] ${model} failed: ${response.status} - ${errorText.substring(0, 300)}`);
+
+        // If model not found or not available, try next
+        if (response.status === 404 || response.status === 400) continue;
+
+        // For auth errors or rate limits, throw immediately
+        throw new Error(`OpenAI ${model}: ${response.status} - ${errorText.substring(0, 200)}`);
+      }
+
+      const data = await response.json();
+
+      // Handle b64_json response
+      if (data.data?.[0]?.b64_json) {
+        const imageBuffer = Buffer.from(data.data[0].b64_json, 'base64');
+        console.log(`[Generation] ${model}: Image generated (${Math.round(imageBuffer.length / 1024)}KB)`);
+        return imageBuffer;
+      }
+
+      // Handle URL response (download and convert to buffer)
+      if (data.data?.[0]?.url) {
+        console.log(`[Generation] ${model}: Downloading image from URL...`);
+        const imgRes = await fetch(data.data[0].url);
+        if (!imgRes.ok) throw new Error('Failed to download generated image');
+        const arrayBuf = await imgRes.arrayBuffer();
+        const imageBuffer = Buffer.from(arrayBuf);
+        console.log(`[Generation] ${model}: Image downloaded (${Math.round(imageBuffer.length / 1024)}KB)`);
+        return imageBuffer;
+      }
+
+      console.error(`[Generation] ${model}: No image data in response`);
+    } catch (err) {
+      console.error(`[Generation] ${model} error:`, err.message);
+      // If last model, rethrow
+      if (model === models[models.length - 1]) throw err;
+      // Otherwise try next model
+      console.log(`[Generation] Trying next model...`);
+    }
   }
 
-  const data = await response.json();
-
-  if (!data.data || !data.data[0] || !data.data[0].b64_json) {
-    throw new Error('OpenAI returned no image data');
-  }
-
-  const imageBuffer = Buffer.from(data.data[0].b64_json, 'base64');
-  console.log(`[Generation] Image generated successfully (${Math.round(imageBuffer.length / 1024)}KB)`);
-  return imageBuffer;
+  throw new Error('All image generation models failed');
 }
 
 module.exports = { generateImprovedImage, generateIteration };
