@@ -9,6 +9,45 @@ router.post('/:id/generate', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
     const submissionId = req.params.id;
+    const config = require('../config');
+
+    // Pre-check: OpenAI API key
+    if (!config.openaiApiKey) {
+      return res.status(500).json({ error: 'OpenAI API key no configurada en el servidor. Agrega OPENAI_API_KEY en las variables de entorno.' });
+    }
+
+    // Pre-check: submission_versions table exists
+    try {
+      await pool.query('SELECT 1 FROM submission_versions LIMIT 0');
+    } catch (tableErr) {
+      console.error('[Generation] Table submission_versions does not exist. Running migration...');
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS submission_versions (
+            id SERIAL PRIMARY KEY,
+            submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+            version_number INTEGER NOT NULL DEFAULT 1,
+            tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('original', 'generated', 'iteration')),
+            image_url TEXT,
+            generation_prompt TEXT,
+            generation_model VARCHAR(50),
+            ai_score INTEGER,
+            ai_recomendaciones JSONB DEFAULT '[]',
+            client_feedback TEXT,
+            client_satisfied BOOLEAN,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+          CREATE INDEX IF NOT EXISTS idx_sv_submission ON submission_versions(submission_id);
+        `);
+        await pool.query(`
+          ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_version INTEGER DEFAULT 1;
+          ALTER TABLE submissions ADD COLUMN IF NOT EXISTS generation_status VARCHAR(20) DEFAULT NULL;
+        `);
+        console.log('[Generation] Migration 007 applied inline');
+      } catch (migErr) {
+        return res.status(500).json({ error: 'Error creando tabla submission_versions: ' + migErr.message });
+      }
+    }
 
     // Get submission with AI analysis
     const subResult = await pool.query('SELECT * FROM submissions WHERE id = $1', [submissionId]);
