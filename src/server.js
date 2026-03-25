@@ -127,6 +127,34 @@ async function runMigrations() {
       `);
       console.log('Migration 006 complete!');
     }
+
+    // Migration 007: submission_versions table + generation columns
+    const hasVersions = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'submission_versions')`);
+    if (!hasVersions.rows[0].exists) {
+      console.log('Running migration 007: submission_versions + generation columns...');
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS submission_versions (
+          id SERIAL PRIMARY KEY,
+          submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+          version_number INTEGER NOT NULL DEFAULT 1,
+          tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('original', 'generated', 'iteration')),
+          image_url TEXT,
+          generation_prompt TEXT,
+          generation_model VARCHAR(50),
+          ai_score INTEGER,
+          ai_recomendaciones JSONB DEFAULT '[]',
+          client_feedback TEXT,
+          client_satisfied BOOLEAN,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_sv_submission ON submission_versions(submission_id);
+      `);
+      await pool.query(`
+        ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_version INTEGER DEFAULT 1;
+        ALTER TABLE submissions ADD COLUMN IF NOT EXISTS generation_status VARCHAR(20) DEFAULT NULL;
+      `);
+      console.log('Migration 007 complete!');
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }
@@ -138,6 +166,7 @@ app.use('/submissions', require('./routes/submissions'));
 app.use('/submissions', require('./routes/webhook-callback'));
 app.use('/submissions', require('./routes/async-analyze'));
 app.use('/submissions', require('./routes/chat'));
+app.use('/submissions', require('./routes/generations'));
 app.use('/admin', require('./routes/admin'));
 app.use('/knowledge-base', require('./routes/knowledge-base'));
 app.use('/feed', require('./routes/feed'));
