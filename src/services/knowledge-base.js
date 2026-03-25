@@ -391,6 +391,53 @@ RUBRICA DE EVALUACION DE PRESENTACIONES (100 PUNTOS):
 9. Branding (5 pts): Logo, colores, fuentes de marca consistentes
 `;
 
+const RUBRICA_SMS = `
+RUBRICA DE EVALUACION DE SMS (100 PUNTOS):
+
+1. Brevedad y Concision (20 pts): Maximo 160 caracteres, cada palabra cuenta, sin relleno
+2. CTA Directo (20 pts): Accion clara (Responde SI, Llama ahora, Haz clic). NO "Mas info"
+3. Personalizacion (15 pts): Usa nombre/contexto, se siente 1 a 1, no masivo
+4. Propuesta de Valor (15 pts): Beneficio claro en la primera linea, razon para actuar
+5. Compliance (10 pts): Opt-out incluido (STOP para cancelar), remitente identificado
+6. Urgencia (10 pts): Razon para actuar AHORA (tiempo limitado, cupo, descuento)
+7. Consistencia de Marca (10 pts): Tono coherente con el negocio, no suena generico
+
+ERRORES CRITICOS SMS:
+- Mas de 160 caracteres (se corta o se divide en 2)
+- Sin opt-out (STOP) - viola regulaciones TCPA
+- Link acortado sospechoso (usar dominio propio)
+- Demasiadas mayusculas o signos de exclamacion (filtro de spam)
+`;
+
+const RUBRICA_WHATSAPP = `
+RUBRICA DE EVALUACION DE PLANTILLAS WHATSAPP (100 PUNTOS):
+
+1. Cumplimiento del Tipo de Plantilla (20 pts):
+   - UTILITY: DEBE ser transaccional (confirmacion de pedido, cita, envio, recordatorio). CERO contenido promocional.
+   - MARKETING: Puede ser promocional pero debe aportar VALOR. No spam. Debe tener razon para contactar.
+   - AUTHENTICATION: Solo OTP/verificacion. DEBE incluir placeholder {{1}} para codigo. Maximo 1 boton.
+   Meta RECHAZA plantillas que no cumplen el tipo declarado.
+
+2. Header/Encabezado (15 pts): Primera linea compelling, funciona como preview de notificacion push
+3. Cuerpo del Mensaje (15 pts): Mensaje claro, longitud apropiada (utility <100 palabras, marketing <150)
+4. Botones CTA (15 pts): Maximo 3 botones, accion directa, deep links preferidos sobre URLs genericas
+5. Variables Dinamicas (10 pts): Uso correcto de {{1}} {{2}} para personalizacion, nombres, fechas, montos
+6. Media (10 pts): Header con imagen/video/documento si aplica. Imagen de alta calidad.
+7. Compliance Meta (15 pts): Cumple politicas de Meta Business. Sin contenido prohibido. Opt-in verificado.
+
+REGLAS POR TIPO:
+UTILITY: "Hola {{1}}, tu cita es el {{2}} a las {{3}}. Confirma respondiendo SI."
+MARKETING: "{{1}}, tenemos una oferta especial para ti: {{2}}. Valida hasta {{3}}."
+AUTHENTICATION: "Tu codigo de verificacion es {{1}}. Expira en 5 minutos."
+
+ERRORES CRITICOS WHATSAPP:
+- Plantilla utility con contenido de marketing (Meta la rechaza)
+- Sin variables de personalizacion (se ve generico/spam)
+- Mas de 3 botones
+- Texto en imagen (Meta puede rechazar)
+- Sin boton de accion claro
+`;
+
 // Build context for AI based on submission
 // Can receive db pool to also load entries from knowledge_base table
 // List of internal businesses that get full hardcoded KB (StoryBrand, rubrics, etc.)
@@ -442,6 +489,10 @@ async function buildKnowledgeContext(submission, pool) {
       context += `\n${RUBRICA_EMAIL}\n`;
     } else if (tipo === 'presentacion') {
       context += `\n${RUBRICA_PRESENTACION}\n`;
+    } else if (tipo === 'sms') {
+      context += `\n${RUBRICA_SMS}\n`;
+    } else if (tipo === 'whatsapp') {
+      context += `\n${RUBRICA_WHATSAPP}\n`;
     }
 
     if (objetivo && CRITERIOS_POR_OBJETIVO[objetivo]) {

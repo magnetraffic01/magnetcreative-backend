@@ -155,6 +155,17 @@ async function runMigrations() {
       `);
       console.log('Migration 007 complete!');
     }
+
+    // Migration 008: Archive support
+    const hasArchived = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'submissions' AND column_name = 'archived')`);
+    if (!hasArchived.rows[0].exists) {
+      console.log('Running migration 008: archive columns...');
+      await pool.query(`
+        ALTER TABLE submissions ADD COLUMN archived BOOLEAN DEFAULT false;
+        ALTER TABLE submissions ADD COLUMN archived_at TIMESTAMP;
+      `);
+      console.log('Migration 008 complete!');
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }

@@ -253,9 +253,10 @@ router.post('/email', authenticate, async (req, res, next) => {
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const { tipo, negocio, estado } = req.query;
+    const { tipo, negocio, estado, include_archived } = req.query;
     let query = 'SELECT s.*, u.name as submitted_by FROM submissions s JOIN users u ON s.user_id = u.id WHERE 1=1';
     const params = [];
+    if (include_archived !== 'true') { query += ` AND (s.archived IS NULL OR s.archived = false)`; }
     if (req.user.role === 'creative') { params.push(req.user.id); query += ` AND s.user_id = $${params.length}`; }
     if (tipo) { params.push(tipo); query += ` AND s.tipo = $${params.length}`; }
     if (negocio) { params.push(negocio); query += ` AND s.negocio = $${params.length}`; }
@@ -320,6 +321,113 @@ router.get('/:id/file', authenticate, async (req, res, next) => {
     const stream = require('fs').createReadStream(filepath);
     stream.pipe(res);
     stream.on('error', () => res.status(500).json({ error: 'Error reading file' }));
+  } catch (error) { next(error); }
+});
+
+// POST /submissions/:id/archive
+router.post('/:id/archive', authenticate, async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const result = await pool.query(
+      'UPDATE submissions SET archived = true, archived_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *',
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ submission: result.rows[0] });
+  } catch (error) { next(error); }
+});
+
+// POST /submissions/:id/unarchive
+router.post('/:id/unarchive', authenticate, async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const result = await pool.query(
+      'UPDATE submissions SET archived = false, archived_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *',
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ submission: result.rows[0] });
+  } catch (error) { next(error); }
+});
+
+// POST /submissions/:id/resubmit - Upload new version and re-evaluate
+router.post('/:id/resubmit', authenticate, upload.single('file'), async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const submissionId = req.params.id;
+
+    const subResult = await pool.query('SELECT * FROM submissions WHERE id = $1', [submissionId]);
+    if (subResult.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const submission = subResult.rows[0];
+
+    if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No access' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'File is required' });
+
+    // Save old analysis as version (preserve history)
+    const versionResult = await pool.query(
+      'SELECT COALESCE(MAX(version_number), 0) as max_version FROM submission_versions WHERE submission_id = $1',
+      [submissionId]
+    );
+    const nextVersion = versionResult.rows[0].max_version + 1;
+
+    // If first resubmit, save original as version 1
+    if (nextVersion === 1) {
+      await pool.query(`
+        INSERT INTO submission_versions (submission_id, version_number, tipo, image_url, ai_score, created_at)
+        VALUES ($1, 1, 'original', $2, $3, $4)
+      `, [submissionId, submission.archivo_url, submission.ai_score, submission.created_at]);
+    }
+
+    // Save new file
+    const savedFilename = saveFile(req.file.buffer, req.file.originalname, submissionId);
+
+    // Save new version record
+    const newVersionNum = nextVersion + 1;
+    await pool.query(`
+      INSERT INTO submission_versions (submission_id, version_number, tipo, image_url)
+      VALUES ($1, $2, 'resubmit', $3)
+    `, [submissionId, newVersionNum, savedFilename]);
+
+    // Update submission: new file, reset AI analysis, re-analyze
+    await pool.query(`
+      UPDATE submissions SET
+        archivo_url = $1, archivo_nombre = $2, archivo_size = $3,
+        estado = 'analizando', current_version = $4,
+        ai_score = NULL, ai_resumen = NULL, ai_veredicto = NULL,
+        ai_fortalezas = '[]', ai_problemas = '[]', ai_recomendaciones = '[]',
+        updated_at = NOW()
+      WHERE id = $5
+    `, [savedFilename, req.file.originalname, req.file.size, newVersionNum, submissionId]);
+
+    // Re-analyze
+    const updatedSub = await pool.query('SELECT * FROM submissions WHERE id = $1', [submissionId]);
+    const sub = updatedSub.rows[0];
+    sub.objetivo = submission.objetivo || req.body.objetivo;
+    sub._dbPool = pool;
+
+    const imageBase64 = req.file.buffer.toString('base64');
+    const imageMimeType = req.file.mimetype;
+
+    console.log(`[Resubmit] #${submissionId}: version ${newVersionNum}, re-analyzing...`);
+
+    try {
+      const result2 = await analyzeOrDispatch(sub, pool, imageBase64, imageMimeType);
+      // Update version with new score
+      const finalSub = result2.submission;
+      if (finalSub.ai_score) {
+        await pool.query(
+          'UPDATE submission_versions SET ai_score = $1 WHERE submission_id = $2 AND version_number = $3',
+          [finalSub.ai_score, submissionId, newVersionNum]
+        );
+      }
+      res.json({ submission: finalSub, version: newVersionNum });
+    } catch (aiErr) {
+      console.error(`[Resubmit] AI error:`, aiErr.message);
+      await pool.query("UPDATE submissions SET estado = 'error', updated_at = NOW() WHERE id = $1", [submissionId]);
+      res.status(500).json({ error: 'Error en re-analisis: ' + aiErr.message });
+    }
   } catch (error) { next(error); }
 });
 
