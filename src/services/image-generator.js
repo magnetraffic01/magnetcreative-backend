@@ -157,7 +157,12 @@ ${problemas.map((p, i) => `${i + 1}. ${p}`).join('\n')}`;
 
   if (recomendaciones.length > 0) {
     prompt += `\n\nRECOMMENDATIONS TO IMPLEMENT:
-${recomendaciones.map((r, i) => `${i + 1}. ${r}`).join('\n')}`;
+${recomendaciones.map((r, i) => {
+  if (typeof r === 'object' && r !== null) {
+    return `${i + 1}. [${r.area || r.titulo || ''}] ${r.detalle || r.descripcion || ''} (${r.accion || 'cambiar'})`;
+  }
+  return `${i + 1}. ${r}`;
+}).join('\n')}`;
   }
 
   prompt += `\n\nIMPORTANT: Create a high-quality, professional advertising creative. Use clear typography, strong visual hierarchy, and appropriate brand colors. The image should be compelling and drive action. Do NOT include any watermarks or AI disclaimers.`;

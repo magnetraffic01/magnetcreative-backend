@@ -52,6 +52,7 @@ router.post('/:id/generate', authenticate, async (req, res, next) => {
     console.log(`[Generation] Generation complete for submission #${submissionId}`);
     res.json({ version });
   } catch (error) {
+    console.error(`[Generation] Error for submission #${req.params.id}:`, error.message);
     // Reset generation status on error
     try {
       const pool = req.app.get('db');
@@ -60,7 +61,8 @@ router.post('/:id/generate', authenticate, async (req, res, next) => {
         [req.params.id]
       );
     } catch (e) { /* ignore */ }
-    next(error);
+    // Return error details instead of generic 500
+    res.status(500).json({ error: error.message || 'Error generando imagen' });
   }
 });
 
