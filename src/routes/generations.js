@@ -210,12 +210,15 @@ router.get('/:id/versions/:versionId/file', authenticate, async (req, res, next)
     const pool = req.app.get('db');
     const { id: submissionId, versionId } = req.params;
 
+    console.log(`[Generation] File request: submission=${submissionId}, version=${versionId}`);
+
     const result = await pool.query(
       'SELECT sv.image_url, s.user_id FROM submission_versions sv JOIN submissions s ON sv.submission_id = s.id WHERE sv.id = $1 AND sv.submission_id = $2',
       [versionId, submissionId]
     );
 
     if (result.rows.length === 0) {
+      console.log(`[Generation] Version not found in DB: submission=${submissionId}, version=${versionId}`);
       return res.status(404).json({ error: 'Version not found' });
     }
 
@@ -223,20 +226,31 @@ router.get('/:id/versions/:versionId/file', authenticate, async (req, res, next)
       return res.status(403).json({ error: 'No tienes acceso' });
     }
 
+    const imageUrl = result.rows[0].image_url;
+    console.log(`[Generation] File lookup: image_url="${imageUrl}"`);
+
     const { getFilePath } = require('../services/file-storage');
-    const filepath = getFilePath(result.rows[0].image_url);
+    const filepath = getFilePath(imageUrl);
     if (!filepath) {
-      return res.status(410).json({ error: 'Archivo expirado' });
+      console.log(`[Generation] File not on disk: "${imageUrl}"`);
+      return res.status(410).json({ error: 'Archivo no encontrado en disco. Puede haber sido eliminado por limpieza automatica.' });
     }
 
+    const fs = require('fs');
+    const stat = fs.statSync(filepath);
+    console.log(`[Generation] Serving file: ${filepath} (${Math.round(stat.size / 1024)}KB)`);
+
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Content-Disposition', `inline; filename="${result.rows[0].image_url}"`);
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Content-Disposition', `inline; filename="${imageUrl}"`);
     res.setHeader('Cache-Control', 'private, max-age=3600');
 
-    const fs = require('fs');
     const stream = fs.createReadStream(filepath);
     stream.pipe(res);
-    stream.on('error', () => res.status(500).json({ error: 'Error reading file' }));
+    stream.on('error', (err) => {
+      console.error(`[Generation] Stream error: ${err.message}`);
+      if (!res.headersSent) res.status(500).json({ error: 'Error reading file' });
+    });
   } catch (error) { next(error); }
 });
 
