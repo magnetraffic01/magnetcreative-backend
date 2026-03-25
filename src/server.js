@@ -115,6 +115,18 @@ async function runMigrations() {
       // Already done or columns don't exist
       if (!e.message.includes('already')) console.log('[Migration 005]', e.message);
     }
+
+    // Migration 006: Password reset columns
+    const hasResetCode = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'reset_code')`);
+    if (!hasResetCode.rows[0].exists) {
+      console.log('Running migration 006: password reset columns...');
+      await pool.query(`
+        ALTER TABLE users
+          ADD COLUMN reset_code VARCHAR(10),
+          ADD COLUMN reset_code_expires TIMESTAMP
+      `);
+      console.log('Migration 006 complete!');
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }

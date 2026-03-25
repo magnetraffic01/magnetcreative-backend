@@ -150,4 +150,60 @@ router.post('/setup-admin', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// POST /auth/forgot-password
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const { email } = req.body;
+
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (result.rows.length > 0) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      await pool.query(
+        'UPDATE users SET reset_code = $1, reset_code_expires = $2 WHERE email = $3',
+        [code, expires, email]
+      );
+
+      console.log(`[Password Reset] Code generated for ${email}: ${code}`);
+    }
+
+    res.json({ message: 'If the email exists, a code was generated' });
+  } catch (error) { next(error); }
+});
+
+// POST /auth/reset-password
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) return res.status(400).json({ error: 'Email, code and newPassword required' });
+
+    const result = await pool.query('SELECT id, reset_code, reset_code_expires FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) return res.status(400).json({ error: 'Codigo invalido o expirado' });
+
+    const user = result.rows[0];
+
+    if (!user.reset_code || user.reset_code !== code) {
+      return res.status(400).json({ error: 'Codigo invalido o expirado' });
+    }
+
+    if (new Date(user.reset_code_expires) < new Date()) {
+      return res.status(400).json({ error: 'Codigo invalido o expirado' });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, reset_code = NULL, reset_code_expires = NULL WHERE id = $2',
+      [hash, user.id]
+    );
+
+    res.json({ message: 'Password actualizado correctamente' });
+  } catch (error) { next(error); }
+});
+
 module.exports = router;
