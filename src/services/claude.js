@@ -28,10 +28,16 @@ async function analyzeWithClaude(submission, imageBase64, imageMimeType) {
 
   const knowledgeContext = await buildKnowledgeContext(submission, submission._dbPool);
 
+  const lang = submission.lang || 'es';
+  const langInstruction = lang === 'en'
+    ? '\n\nIMPORTANT: Respond ALL text fields (resumen, fortalezas, problemas, recomendaciones, veredicto descriptions) in ENGLISH.'
+    : '\n\nIMPORTANTE: Responde TODOS los campos de texto (resumen, fortalezas, problemas, recomendaciones, descripciones) en ESPANOL.';
+
   let userText = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n- Formato: ${submission.formato || 'No especificado'}\n`;
   if (submission.descripcion) userText += `- Descripcion: ${submission.descripcion}\n`;
   userText += knowledgeContext;
   if (submission._platformContext) userText += submission._platformContext;
+  userText += langInstruction;
   userText += '\nEvalua este creativo y genera tu evaluacion completa. Verifica que las dimensiones y formato sean correctos para la plataforma destino.';
 
   let content;

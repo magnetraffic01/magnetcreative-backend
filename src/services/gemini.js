@@ -30,10 +30,16 @@ async function analyzeContent(submission) {
 
   const knowledgeContext = await buildKnowledgeContext(submission, submission._dbPool);
 
+  const lang = submission.lang || 'es';
+  const langInstruction = lang === 'en'
+    ? '\n\nIMPORTANT: Respond ALL text fields (resumen, fortalezas, problemas, recomendaciones) in ENGLISH.'
+    : '\n\nIMPORTANTE: Responde TODOS los campos de texto (resumen, fortalezas, problemas, recomendaciones) en ESPANOL.';
+
   let userContext = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n- Formato: ${submission.formato || 'No especificado'}\n`;
   if (submission.descripcion) userContext += `- Descripcion: ${submission.descripcion}\n`;
   userContext += knowledgeContext;
   if (submission._platformContext) userContext += submission._platformContext;
+  userContext += langInstruction;
   userContext += '\nEvalua este creativo y genera tu evaluacion completa. Verifica dimensiones y formato para la plataforma.';
 
   let contents;

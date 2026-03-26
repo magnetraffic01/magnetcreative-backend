@@ -150,7 +150,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
     if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite alcanzado / Rate limit exceeded. Intenta en 1 hora.' });
 
     const pool = req.app.get('db');
-    const { titulo, tipo, negocio, plataforma, descripcion, objetivo, gemini_file_uri } = req.body;
+    const { titulo, tipo, negocio, plataforma, descripcion, objetivo, gemini_file_uri, lang } = req.body;
 
     if (!titulo || !negocio) {
       return res.status(400).json({ error: 'Titulo and negocio are required' });
@@ -216,7 +216,7 @@ router.post('/', authenticate, async (req, res, next) => {
     if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite alcanzado / Rate limit exceeded. Intenta en 1 hora.' });
 
     const pool = req.app.get('db');
-    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo, localFile } = req.body;
+    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo, localFile, lang } = req.body;
 
     if (!titulo || !negocio) {
       return res.status(400).json({ error: 'Titulo and negocio are required' });
@@ -232,6 +232,7 @@ router.post('/', authenticate, async (req, res, next) => {
 
     const submission = result.rows[0];
     submission.objetivo = objetivo;
+    submission.lang = lang || 'es';
     submission._dbPool = pool;
 
     // If video was saved to disk during gemini-upload, link it to this submission
@@ -262,7 +263,7 @@ router.post('/email', authenticate, async (req, res, next) => {
     if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite alcanzado / Rate limit exceeded. Intenta en 1 hora.' });
 
     const pool = req.app.get('db');
-    const { titulo, negocio, contenido_email, descripcion, objetivo } = req.body;
+    const { titulo, negocio, contenido_email, descripcion, objetivo, lang, tipo: emailTipo, whatsapp_template_type } = req.body;
 
     if (!titulo || !negocio || !contenido_email) {
       return res.status(400).json({ error: 'Titulo, negocio and contenido_email are required' });
@@ -270,12 +271,13 @@ router.post('/email', authenticate, async (req, res, next) => {
 
     const result = await pool.query(`
       INSERT INTO submissions (user_id, titulo, tipo, negocio, descripcion, contenido_email, objetivo, estado)
-      VALUES ($1, $2, 'email', $3, $4, $5, $6, 'analizando')
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'analizando')
       RETURNING *
-    `, [req.user.id, titulo, negocio, descripcion, contenido_email, objetivo || null]);
+    `, [req.user.id, titulo, emailTipo || 'email', negocio, descripcion, contenido_email, objetivo || null]);
 
     const submission = result.rows[0];
     submission.objetivo = objetivo;
+    submission.lang = lang || 'es';
     submission._dbPool = pool;
     console.log(`[Submission] Created email #${submission.id}: ${titulo}, objetivo: ${objetivo || 'none'}`);
 
