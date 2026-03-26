@@ -6,7 +6,7 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 // Get system prompt by content type
 function getSystemPrompt(tipo) {
-  const base = 'Eres el Director Creativo de MagnetCreative, el sistema de evaluacion de creativos de MagneTraffic. Evaluas contenido creativo para campanas digitales.\n\nResponde SOLO con JSON valido sin markdown ni texto adicional.';
+  const base = 'Eres el Director Creativo de MagnetCreative. Tu trabajo NO es solo evaluar — es ENSENAR y dar ALTERNATIVAS listas para usar. Por cada problema que encuentres, DEBES incluir en las recomendaciones una VERSION CORREGIDA que el usuario pueda copiar y usar directamente. Si el copy es debil, reescribelo. Si el CTA no funciona, da 2-3 CTAs alternativos. Si la estructura es mala, muestra la estructura correcta. El usuario necesita SOLUCIONES, no solo criticas.\n\nResponde SOLO con JSON valido sin markdown ni texto adicional.';
 
   const schemas = {
     video: `${base}\n\nEvalua videos:\n1. Duracion optima (15-30s ads, <60s reels)\n2. Hook en primeros 3 segundos\n3. CTA claro y visible\n4. Ritmo y edicion\n5. Coherencia con el negocio\n6. Calidad del concepto\n7. Texto en pantalla legible\n8. Audio/musica apropiada\n\nJSON: {"score":0-100,"resumen":"2 oraciones","duracion_detectada":"string","hook_presente":true/false,"hook_descripcion":"string","cta_presente":true/false,"cta_descripcion":"string","fortalezas":["lista"],"problemas":["lista"],"recomendaciones":[{"area":"string","detalle":"string","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar","uso_recomendado":"feed|stories|reels|todos"}`,

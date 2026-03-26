@@ -393,49 +393,147 @@ RUBRICA DE EVALUACION DE PRESENTACIONES (100 PUNTOS):
 
 const RUBRICA_SMS = `
 RUBRICA DE EVALUACION DE SMS (100 PUNTOS):
+IMPORTANTE: No solo evalues. Por cada problema que encuentres, DEBES dar una VERSION CORREGIDA lista para copiar y usar. El usuario necesita alternativas, no solo criticas.
 
-1. Brevedad y Concision (20 pts): Maximo 160 caracteres, cada palabra cuenta, sin relleno
-2. CTA Directo (20 pts): Accion clara (Responde SI, Llama ahora, Haz clic). NO "Mas info"
-3. Personalizacion (15 pts): Usa nombre/contexto, se siente 1 a 1, no masivo
-4. Propuesta de Valor (15 pts): Beneficio claro en la primera linea, razon para actuar
-5. Compliance (10 pts): Opt-out incluido (STOP para cancelar), remitente identificado
-6. Urgencia (10 pts): Razon para actuar AHORA (tiempo limitado, cupo, descuento)
-7. Consistencia de Marca (10 pts): Tono coherente con el negocio, no suena generico
+1. PREVIEW HACK Y ESTRUCTURA (20 pts):
+   - ¿El nombre del destinatario esta en la PRIMERA LINEA? (critico para preview de notificacion)
+   - ¿Hay 3-5 lineas en blanco despues del nombre para empujar el cuerpo fuera de la preview?
+   - Tecnica: el telefono muestra ~40 chars en la notificacion. Si solo ve "Hola Juan," genera curiosidad maxima
+   - FORMATO CORRECTO:
+     "Hola {{nombre}},\n\n\n\nTu mensaje aqui. Responde SI\n\nSTOP para cancelar"
+   - Si NO usa preview hack, mostrar como quedaria CON el hack
 
-ERRORES CRITICOS SMS:
-- Mas de 160 caracteres (se corta o se divide en 2)
-- Sin opt-out (STOP) - viola regulaciones TCPA
-- Link acortado sospechoso (usar dominio propio)
-- Demasiadas mayusculas o signos de exclamacion (filtro de spam)
+2. CTA DE RESPUESTA SIMPLE (20 pts):
+   - El CTA debe ser UNA PALABRA de respuesta: "Responde SI", "Responde HOLA", "Responde 1"
+   - CTAs de respuesta simple tienen 70% de conversion vs 15% de links
+   - MALO: "Visita nuestro sitio web para mas informacion"
+   - BUENO: "Responde SI y te envio los detalles"
+   - Si el CTA es debil, REESCRIBIR el SMS completo con CTA correcto
+
+3. PERSONALIZACION (15 pts):
+   - Usa {{nombre}} del destinatario
+   - Referencia contexto: "la ultima vez que hablamos", "tu consulta sobre dental"
+   - Se siente como mensaje de UN HUMANO, no de una empresa
+   - Si suena generico, dar version personalizada
+
+4. PROPUESTA DE VALOR EN 1 LINEA (15 pts):
+   - El beneficio debe ser claro en UNA oracion despues de los espacios
+   - Usar numeros concretos: "$14.99/mes", "ahorra $300", "en 24 horas"
+   - Si el beneficio es vago, reescribir con numero concreto
+
+5. COMPLIANCE TCPA (10 pts):
+   - OBLIGATORIO: "STOP para cancelar" al final
+   - Sin esto, viola regulaciones federales de EE.UU.
+   - Si falta, agregar automaticamente en la version corregida
+
+6. BREVEDAD (10 pts):
+   - MAXIMO 160 caracteres (1 SMS = 1 cobro, >160 = 2 SMS = doble costo)
+   - Contar caracteres exactos y reportar
+   - Si excede 160, dar version recortada que mantenga el mensaje
+
+7. TIMING Y CONTEXTO (10 pts):
+   - ¿Es apropiado para base fria? (no agresivo, no asume relacion)
+   - ¿Tiene razon para contactar? (no es spam aleatorio)
+   - Sugerir horario: 10am-2pm o 5pm-7pm
+
+PARA CADA PROBLEMA, DAR:
+- ❌ Version actual (lo que envio el usuario)
+- ✅ Version corregida (lista para copiar y usar)
+- 💡 Por que funciona mejor
+
+PLANTILLAS DE REFERENCIA PARA BASE FRIA:
+Reactivacion: "Hola {{nombre}},\n\n\n\n¿Sigues buscando opciones de seguro dental? Tengo algo nuevo para ti. Responde SI\n\nSTOP para cancelar"
+Urgencia: "{{nombre}},\n\n\n\nTu cotizacion de $14.99/mes vence manana. ¿La activo? Responde SI\n\nSTOP para cancelar"
+Re-engagement: "{{nombre}}, hace tiempo no hablamos\n\n\n\n¿Todo bien? Si aun necesitas ayuda, estoy aqui. Responde HOLA\n\nSTOP para cancelar"
+Oferta directa: "{{nombre}},\n\n\n\nTengo 3 opciones de seguro desde $0/mes para ti. ¿Te interesa? Responde SI\n\nSTOP para cancelar"
 `;
 
 const RUBRICA_WHATSAPP = `
 RUBRICA DE EVALUACION DE PLANTILLAS WHATSAPP (100 PUNTOS):
+IMPORTANTE: No solo evalues. Por cada problema, DEBES dar VERSION CORREGIDA de la plantilla completa lista para enviar a Meta para aprobacion. El usuario necesita la solucion, no solo la critica.
 
-1. Cumplimiento del Tipo de Plantilla (20 pts):
-   - UTILITY: DEBE ser transaccional (confirmacion de pedido, cita, envio, recordatorio). CERO contenido promocional.
-   - MARKETING: Puede ser promocional pero debe aportar VALOR. No spam. Debe tener razon para contactar.
-   - AUTHENTICATION: Solo OTP/verificacion. DEBE incluir placeholder {{1}} para codigo. Maximo 1 boton.
-   Meta RECHAZA plantillas que no cumplen el tipo declarado.
+1. CUMPLIMIENTO DEL TIPO DE PLANTILLA (20 pts):
+   - UTILITY (abrir canal): DEBE ser 100% transaccional. Si tiene CUALQUIER contenido promocional, Meta la RECHAZA.
+     BIEN: "Hola {{1}}, tu cita es el {{2}} a las {{3}}. Responde SI para confirmar o NO para reprogramar."
+     MAL: "Hola {{1}}, tu cita es manana. Aprovecha nuestro descuento del 20%!" ← RECHAZADA (mezcla utility con marketing)
+   - MARKETING (promocional): Puede vender pero debe aportar VALOR real. No spam.
+     BIEN: "{{1}}, tienes un descuento exclusivo del 30% en tu limpieza dental. Solo hasta el {{2}}. ¿Te agendo?"
+     MAL: "OFERTA INCREIBLE!!! COMPRA YA!!!" ← RECHAZADA (spam, mayusculas, sin personalizacion)
+   - AUTHENTICATION: SOLO codigos de verificacion. Maximo 1 boton.
+     BIEN: "Tu codigo de verificacion es {{1}}. Expira en 5 minutos. No compartas este codigo."
+   - Si el tipo declarado no coincide con el contenido, CORREGIR la plantilla completa
 
-2. Header/Encabezado (15 pts): Primera linea compelling, funciona como preview de notificacion push
-3. Cuerpo del Mensaje (15 pts): Mensaje claro, longitud apropiada (utility <100 palabras, marketing <150)
-4. Botones CTA (15 pts): Maximo 3 botones, accion directa, deep links preferidos sobre URLs genericas
-5. Variables Dinamicas (10 pts): Uso correcto de {{1}} {{2}} para personalizacion, nombres, fechas, montos
-6. Media (10 pts): Header con imagen/video/documento si aplica. Imagen de alta calidad.
-7. Compliance Meta (15 pts): Cumple politicas de Meta Business. Sin contenido prohibido. Opt-in verificado.
+2. PREVIEW DE NOTIFICACION (15 pts):
+   - La primera linea es lo que el usuario ve en la notificacion push de WhatsApp
+   - Debe generar curiosidad o valor inmediato
+   - MALO: "Estimado cliente, le informamos que..." (corporativo, aburrido)
+   - BUENO: "{{1}}, tengo noticias sobre tu consulta" (personal, intrigante)
+   - Dar 3 alternativas de primera linea si la actual es debil
 
-REGLAS POR TIPO:
-UTILITY: "Hola {{1}}, tu cita es el {{2}} a las {{3}}. Confirma respondiendo SI."
-MARKETING: "{{1}}, tenemos una oferta especial para ti: {{2}}. Valida hasta {{3}}."
-AUTHENTICATION: "Tu codigo de verificacion es {{1}}. Expira en 5 minutos."
+3. CUERPO CLARO Y CONCISO (15 pts):
+   - Utility: maximo 100 palabras
+   - Marketing: maximo 150 palabras
+   - UNA idea por plantilla, no multiples ofertas
+   - Usar emojis con moderacion (1-2 max, no llenar de emojis)
+   - Si es largo, dar version recortada
 
-ERRORES CRITICOS WHATSAPP:
-- Plantilla utility con contenido de marketing (Meta la rechaza)
-- Sin variables de personalizacion (se ve generico/spam)
-- Mas de 3 botones
-- Texto en imagen (Meta puede rechazar)
-- Sin boton de accion claro
+4. BOTONES CTA (15 pts):
+   - Maximo 3 botones (regla de Meta)
+   - Cada boton debe tener accion DIRECTA: "Agendar cita", "Ver oferta", "Llamar ahora"
+   - Deep links preferidos: wa.me/numero, tel:+1234567890
+   - Quick replies para respuestas simples: "Si, me interesa" / "No, gracias"
+   - Si no tiene botones, sugerir cuales agregar
+
+5. VARIABLES DINAMICAS (10 pts):
+   - {{1}} = nombre SIEMPRE (personalizacion minima)
+   - {{2}} = dato relevante (fecha, precio, producto)
+   - {{3}} = contexto (sucursal, agente, referencia)
+   - Variables deben tener fallback (si nombre es vacio, usar "amigo/a")
+   - Si no tiene variables, agregar y mostrar ejemplo
+
+6. MEDIA HEADER (10 pts):
+   - Imagen: alta calidad, sin texto sobrepuesto (Meta puede rechazar)
+   - Video: max 16MB, formato MP4
+   - Documento: PDF para cotizaciones, contratos
+   - Si el tipo de mensaje se beneficiaria de media pero no la tiene, sugerir
+
+7. COMPLIANCE META BUSINESS (15 pts):
+   - Sin contenido prohibido (alcohol, tabaco, armas, etc.)
+   - Opt-in verificado (el usuario debe haber dado consentimiento)
+   - Sin lenguaje amenazante o presion excesiva
+   - Sin promesas de resultados garantizados
+   - Si viola alguna politica, explicar CUAL y dar version que cumpla
+
+PARA CADA PROBLEMA, DAR:
+- ❌ Version actual
+- ✅ Plantilla corregida COMPLETA (header + body + botones) lista para enviar a Meta
+- 💡 Por que Meta la aprobaria y por que convierte mejor
+
+PLANTILLAS DE REFERENCIA:
+
+UTILITY - Confirmacion de cita:
+Header: Confirmacion de cita
+Body: "Hola {{1}}, tu cita esta programada para el {{2}} a las {{3}}. Responde para confirmar o reprogramar."
+Botones: [Confirmar] [Reprogramar] [Llamar]
+
+UTILITY - Seguimiento de orden:
+Header: Tu pedido esta en camino
+Body: "{{1}}, tu pedido #{{2}} fue enviado. Llegara el {{3}}. Rastrear aqui:"
+Botones: [Rastrear pedido]
+
+MARKETING - Oferta dental:
+Header: imagen de sonrisa
+Body: "{{1}}, tu limpieza dental con 30% de descuento te espera. Solo hasta el {{2}}. ¿Te agendo?"
+Botones: [Si, agendar] [Ver precios] [Llamar]
+
+MARKETING - Reactivacion:
+Header: Te extranamos
+Body: "{{1}}, hace tiempo no nos visitas. Tenemos algo especial para ti: {{2}}. ¿Te interesa?"
+Botones: [Si, cuéntame] [No, gracias]
+
+AUTHENTICATION:
+Body: "Tu codigo de verificacion es {{1}}. Expira en 5 minutos. No compartas este codigo con nadie."
+Botones: [Copiar codigo]
 `;
 
 // Build context for AI based on submission
