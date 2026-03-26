@@ -173,6 +173,17 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE submissions ADD COLUMN objetivo VARCHAR(50)`);
       console.log('Migration 009 complete!');
     }
+
+    // Migration 010: Share token columns
+    const hasShareToken = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'submissions' AND column_name = 'share_token')`);
+    if (!hasShareToken.rows[0].exists) {
+      console.log('Running migration 010: share token columns...');
+      await pool.query(`
+        ALTER TABLE submissions ADD COLUMN share_token VARCHAR(48);
+        ALTER TABLE submissions ADD COLUMN share_expires TIMESTAMP;
+      `);
+      console.log('Migration 010 complete!');
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }

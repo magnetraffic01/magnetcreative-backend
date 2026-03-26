@@ -210,7 +210,7 @@ router.post('/', authenticate, async (req, res, next) => {
     if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite de uploads alcanzado. Intenta en 1 hora.' });
 
     const pool = req.app.get('db');
-    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo } = req.body;
+    const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo, localFile } = req.body;
 
     if (!titulo || !negocio) {
       return res.status(400).json({ error: 'Titulo and negocio are required' });
@@ -227,7 +227,16 @@ router.post('/', authenticate, async (req, res, next) => {
     const submission = result.rows[0];
     submission.objetivo = objetivo;
     submission._dbPool = pool;
-    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), objetivo: ${objetivo || 'none'}, Gemini URI: ${gemini_file_uri || 'none'}`);
+
+    // If video was saved to disk during gemini-upload, link it to this submission
+    if (localFile) {
+      await pool.query('UPDATE submissions SET archivo_url = $1, archivo_nombre = $2 WHERE id = $3',
+        [localFile, localFile, submission.id]);
+      submission.archivo_url = localFile;
+      submission.archivo_nombre = localFile;
+    }
+
+    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), objetivo: ${objetivo || 'none'}, Gemini URI: ${gemini_file_uri || 'none'}, localFile: ${localFile || 'none'}`);
 
     try {
       const result2 = await analyzeOrDispatch(submission, pool, null, null);
@@ -465,6 +474,62 @@ router.post('/:id/resubmit', authenticate, upload.single('file'), async (req, re
       await pool.query("UPDATE submissions SET estado = 'error', updated_at = NOW() WHERE id = $1", [submissionId]);
       res.status(500).json({ error: 'Error en re-analisis: ' + aiErr.message });
     }
+  } catch (error) { next(error); }
+});
+
+// POST /submissions/:id/share - Generate a temporary public share token
+router.post('/:id/share', authenticate, async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const crypto = require('crypto');
+    const submissionId = req.params.id;
+
+    // Verify ownership or admin
+    const subResult = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [submissionId]);
+    if (subResult.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    if (req.user.role !== 'admin' && subResult.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No access' });
+    }
+
+    // Generate token (valid for 7 days)
+    const shareToken = crypto.randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await pool.query(
+      'UPDATE submissions SET share_token = $1, share_expires = $2 WHERE id = $3',
+      [shareToken, expiresAt, submissionId]
+    );
+
+    res.json({
+      shareUrl: `/shared/${submissionId}/${shareToken}`,
+      expiresAt: expiresAt.toISOString()
+    });
+  } catch (error) { next(error); }
+});
+
+// GET /submissions/:id/shared/:token - Public view (no auth needed)
+router.get('/:id/shared/:token', async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const { id, token } = req.params;
+
+    const result = await pool.query(
+      `SELECT s.*, u.name as submitted_by FROM submissions s JOIN users u ON s.user_id = u.id
+       WHERE s.id = $1 AND s.share_token = $2 AND s.share_expires > NOW()`,
+      [id, token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Link expirado o invalido' });
+    }
+
+    // Return submission without sensitive fields
+    const sub = result.rows[0];
+    delete sub.share_token;
+    delete sub.share_expires;
+    delete sub.user_id;
+
+    res.json({ submission: sub });
   } catch (error) { next(error); }
 });
 
