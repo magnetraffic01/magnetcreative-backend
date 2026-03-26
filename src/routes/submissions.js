@@ -77,6 +77,12 @@ async function analyzeOrDispatch(submission, pool, imageBase64, imageMimeType) {
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 
+// GET /submissions/gemini-key - Temporary key for direct upload (videos too large for proxy)
+router.get('/gemini-key', authenticate, (req, res) => {
+  if (!config.geminiApiKey) return res.status(500).json({ error: 'Gemini not configured' });
+  res.json({ key: config.geminiApiKey });
+});
+
 // POST /submissions/gemini-upload - Proxy upload to Gemini (key never leaves server)
 router.post('/gemini-upload', authenticate, upload.single('file'), async (req, res, next) => {
   try {
