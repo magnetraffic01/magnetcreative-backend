@@ -59,12 +59,12 @@ router.post('/:id/generate', authenticate, async (req, res, next) => {
 
     // Verify ownership or admin
     if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+      return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
     // Check that AI analysis exists
     if (!submission.ai_score) {
-      return res.status(400).json({ error: 'Esta submission aun no ha sido analizada por la IA' });
+      return res.status(400).json({ error: 'Aun no analizada / Not analyzed yet' });
     }
 
     // Update status to generating
@@ -126,7 +126,7 @@ router.post('/:id/iterate', authenticate, async (req, res, next) => {
 
     // Verify ownership or admin
     if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+      return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
     // If no version_id provided, use the latest version
@@ -184,7 +184,7 @@ router.get('/:id/versions', authenticate, async (req, res, next) => {
 
     const submission = subResult.rows[0];
     if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+      return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
     const result = await pool.query(
@@ -268,7 +268,7 @@ router.post('/:id/submit-final', authenticate, async (req, res, next) => {
     const submission = subResult.rows[0];
 
     if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+      return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
     // Mark the latest version as client_satisfied

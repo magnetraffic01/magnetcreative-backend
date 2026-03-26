@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const config = require('../config');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
@@ -160,7 +161,7 @@ router.post('/forgot-password', async (req, res, next) => {
 
     const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (result.rows.length > 0) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const code = crypto.randomBytes(16).toString('hex');
       const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       await pool.query(

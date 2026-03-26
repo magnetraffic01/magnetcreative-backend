@@ -141,7 +141,7 @@ router.post('/gemini-upload', authenticate, upload.single('file'), async (req, r
 // POST /submissions/upload - Upload file directly for Claude analysis (non-video)
 router.post('/upload', authenticate, upload.single('file'), async (req, res, next) => {
   try {
-    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite de uploads alcanzado. Intenta en 1 hora.' });
+    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite alcanzado / Rate limit exceeded. Intenta en 1 hora.' });
 
     const pool = req.app.get('db');
     const { titulo, tipo, negocio, plataforma, descripcion, objetivo, gemini_file_uri } = req.body;
@@ -207,7 +207,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 // POST /submissions - Submit creative (JSON, for videos with Gemini URI)
 router.post('/', authenticate, async (req, res, next) => {
   try {
-    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite de uploads alcanzado. Intenta en 1 hora.' });
+    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite alcanzado / Rate limit exceeded. Intenta en 1 hora.' });
 
     const pool = req.app.get('db');
     const { titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo, localFile } = req.body;
@@ -253,7 +253,7 @@ router.post('/', authenticate, async (req, res, next) => {
 // POST /submissions/email
 router.post('/email', authenticate, async (req, res, next) => {
   try {
-    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite de uploads alcanzado. Intenta en 1 hora.' });
+    if (!rateLimit(req.user.id, 'upload', 20)) return res.status(429).json({ error: 'Limite alcanzado / Rate limit exceeded. Intenta en 1 hora.' });
 
     const pool = req.app.get('db');
     const { titulo, negocio, contenido_email, descripcion, objetivo } = req.body;
@@ -307,7 +307,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     if (req.user.role !== 'admin' && result.rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+      return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
     const sub = result.rows[0];
     // Add download URL if file exists on disk
@@ -325,7 +325,7 @@ router.get('/:id/file', authenticate, async (req, res, next) => {
     const result = await pool.query('SELECT archivo_url, archivo_nombre, tipo, user_id FROM submissions WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     if (req.user.role !== 'admin' && result.rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+      return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
     const sub = result.rows[0];
@@ -367,7 +367,7 @@ router.post('/:id/archive', authenticate, async (req, res, next) => {
     const check = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [req.params.id]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     if (req.user.role !== 'admin' && check.rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+      return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
     const result = await pool.query(
       'UPDATE submissions SET archived = true, archived_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *',
@@ -384,7 +384,7 @@ router.post('/:id/unarchive', authenticate, async (req, res, next) => {
     const check = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [req.params.id]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     if (req.user.role !== 'admin' && check.rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ error: 'No tienes acceso a esta submission' });
+      return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
     const result = await pool.query(
       'UPDATE submissions SET archived = false, archived_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *',

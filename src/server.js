@@ -184,6 +184,19 @@ async function runMigrations() {
       `);
       console.log('Migration 010 complete!');
     }
+    // Migration 011: FK constraint + widen reset_code
+    try {
+      await pool.query(`ALTER TABLE submissions ADD CONSTRAINT fk_submissions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`);
+      console.log('[Migration 011] FK constraint added');
+    } catch (e) {
+      if (!e.message.includes('already exists')) console.log('[Migration 011]', e.message);
+    }
+    try {
+      await pool.query(`ALTER TABLE users ALTER COLUMN reset_code TYPE VARCHAR(64)`);
+      console.log('[Migration 011] Widened reset_code to VARCHAR(64)');
+    } catch (e) {
+      if (!e.message.includes('already')) console.log('[Migration 011]', e.message);
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }

@@ -1,0 +1,2 @@
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS share_token VARCHAR(48);
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS share_expires TIMESTAMP;

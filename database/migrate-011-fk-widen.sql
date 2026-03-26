@@ -1,0 +1,1 @@
+ALTER TABLE users ALTER COLUMN reset_code TYPE VARCHAR(64);
