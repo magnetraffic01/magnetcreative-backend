@@ -38,11 +38,18 @@ router.post('/login', async (req, res, next) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Credenciales invalidas' });
 
-    const token = jwt.sign({ userId: user.id }, config.jwtSecret, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: user.id, tenantId: user.tenant_id }, config.jwtSecret, { expiresIn: '7d' });
     await pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
 
+    // Load tenant info for the user
+    let tenantInfo = null;
+    if (user.tenant_id) {
+      const tenantResult = await pool.query('SELECT id, slug, name, logo_url, primary_color, secondary_color FROM tenants WHERE id = $1', [user.tenant_id]);
+      if (tenantResult.rows.length > 0) tenantInfo = tenantResult.rows[0];
+    }
+
     delete user.password_hash;
-    res.json({ user, token });
+    res.json({ user, token, tenant: tenantInfo });
   } catch (error) { next(error); }
 });
 

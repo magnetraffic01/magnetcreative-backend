@@ -12,7 +12,7 @@ function authenticate(req, res, next) {
     const decoded = jwt.verify(token, config.jwtSecret);
     const pool = req.app.get('db');
 
-    pool.query('SELECT id, email, name, role, negocio, negocios FROM users WHERE id = $1', [decoded.userId])
+    pool.query('SELECT id, email, name, role, negocio, negocios, tenant_id FROM users WHERE id = $1', [decoded.userId])
       .then(result => {
         if (result.rows.length === 0) return res.status(401).json({ error: 'User not found' });
         req.user = result.rows[0];
@@ -25,10 +25,24 @@ function authenticate(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.user.role !== 'admin') {
+  if (!['admin', 'super_admin', 'tenant_admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
 }
 
-module.exports = { authenticate, requireAdmin };
+function requireSuperAdmin(req, res, next) {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Super admin access required' });
+  }
+  next();
+}
+
+function requireManager(req, res, next) {
+  if (!['super_admin', 'tenant_admin', 'admin', 'manager'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Manager access required' });
+  }
+  next();
+}
+
+module.exports = { authenticate, requireAdmin, requireSuperAdmin, requireManager };

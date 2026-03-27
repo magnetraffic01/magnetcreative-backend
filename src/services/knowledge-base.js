@@ -548,9 +548,36 @@ async function buildKnowledgeContext(submission, pool) {
   const tipo = submission.tipo;
   const isInternal = INTERNAL_NEGOCIOS.includes(negocioName);
 
+  // Try dynamic business from DB first (for any tenant)
+  let dynamicBusiness = null;
+  if (pool) {
+    try {
+      const bizResult = await pool.query(
+        'SELECT * FROM businesses WHERE name = $1 LIMIT 1',
+        [negocioName]
+      );
+      if (bizResult.rows.length > 0) {
+        dynamicBusiness = bizResult.rows[0];
+      }
+    } catch (e) { /* businesses table may not exist yet */ }
+  }
+
   let context = `\n\nBASE DE CONOCIMIENTO DEL NEGOCIO:\n`;
 
-  if (negocio) {
+  if (dynamicBusiness) {
+    // Use dynamic business from DB
+    const db = dynamicBusiness;
+    context += `Negocio: ${negocioName}\n`;
+    if (db.description) context += `Descripcion: ${db.description}\n`;
+    if (db.audience) context += `Audiencia objetivo: ${db.audience}\n`;
+    if (db.tone) context += `Tono de marca: ${db.tone}\n`;
+    if (db.products) context += `Productos/servicios: ${db.products}\n`;
+    if (db.colors) context += `Colores de marca: ${db.colors}\n`;
+    if (db.visual_style) context += `Estilo visual: ${db.visual_style}\n`;
+    if (db.rules) context += `Reglas especificas: ${db.rules}\n`;
+    if (db.urls) context += `URLs: ${db.urls}\n`;
+  } else if (negocio) {
+    // Fallback to hardcoded (for MagneTraffic default tenant)
     context += `Negocio: ${negocioName}\n`;
     context += `Descripcion: ${negocio.descripcion}\n`;
     context += `Audiencia objetivo: ${negocio.audiencia}\n`;

@@ -210,6 +210,89 @@ async function runMigrations() {
     } catch (e) {
       if (!e.message.includes('already')) console.log('[Migration 011]', e.message);
     }
+
+    // Migration 012: tenants table
+    const hasTenants = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'tenants')`);
+    if (!hasTenants.rows[0].exists) {
+      console.log('Running migration 012: tenants table...');
+      await pool.query(`
+        CREATE TABLE tenants (
+          id SERIAL PRIMARY KEY,
+          slug VARCHAR(50) UNIQUE NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          domain VARCHAR(255),
+          logo_url TEXT,
+          primary_color VARCHAR(7) DEFAULT '#D4AF37',
+          secondary_color VARCHAR(7) DEFAULT '#1a365d',
+          plan VARCHAR(20) DEFAULT 'starter',
+          status VARCHAR(20) DEFAULT 'active',
+          max_users INTEGER DEFAULT 10,
+          max_evaluations_month INTEGER DEFAULT 100,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('Migration 012 complete!');
+    }
+
+    // Migration 013: tenant_id on all tables
+    const hasTenantId = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'tenant_id')`);
+    if (!hasTenantId.rows[0].exists) {
+      console.log('Running migration 013: tenant_id columns...');
+      await pool.query(`
+        ALTER TABLE users ADD COLUMN tenant_id INTEGER REFERENCES tenants(id);
+        ALTER TABLE submissions ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+        ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+      `);
+      console.log('Migration 013 complete!');
+    }
+
+    // Migration 014: businesses table
+    const hasBusinesses = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'businesses')`);
+    if (!hasBusinesses.rows[0].exists) {
+      console.log('Running migration 014: businesses table...');
+      await pool.query(`
+        CREATE TABLE businesses (
+          id SERIAL PRIMARY KEY,
+          tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+          name VARCHAR(100) NOT NULL,
+          description TEXT,
+          audience TEXT,
+          tone TEXT,
+          colors TEXT,
+          visual_style TEXT,
+          rules TEXT,
+          products TEXT,
+          urls TEXT,
+          created_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(tenant_id, name)
+        )
+      `);
+      console.log('Migration 014 complete!');
+    }
+
+    // Migration 015: default tenant + assign existing data
+    try {
+      const defaultTenant = await pool.query(`SELECT id FROM tenants WHERE slug = 'magnetraffic'`);
+      if (defaultTenant.rows.length === 0) {
+        console.log('Running migration 015: default tenant...');
+        await pool.query(`INSERT INTO tenants (slug, name, domain, status, plan) VALUES ('magnetraffic', 'MagneTraffic', 'studio.magnetraffic.com', 'active', 'enterprise')`);
+        const tid = await pool.query(`SELECT id FROM tenants WHERE slug = 'magnetraffic'`);
+        const tenantId = tid.rows[0].id;
+        await pool.query(`UPDATE users SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
+        await pool.query(`UPDATE submissions SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
+        await pool.query(`UPDATE knowledge_base SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
+        console.log('Migration 015 complete!');
+      }
+    } catch (e) { console.log('[Migration 015]', e.message); }
+
+    // Migration 016: expanded roles + permissions
+    const hasPermissions = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'permissions')`);
+    if (!hasPermissions.rows[0].exists) {
+      console.log('Running migration 016: permissions + roles...');
+      await pool.query(`ALTER TABLE users ADD COLUMN permissions JSONB DEFAULT '[]'`);
+      await pool.query(`UPDATE users SET role = 'super_admin' WHERE email = 'admin@magnetraffic.com'`);
+      console.log('Migration 016 complete!');
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }
@@ -225,6 +308,8 @@ app.use('/submissions', require('./routes/generations'));
 app.use('/admin', require('./routes/admin'));
 app.use('/knowledge-base', require('./routes/knowledge-base'));
 app.use('/feed', require('./routes/feed'));
+app.use('/tenants', require('./routes/tenants'));
+app.use('/businesses', require('./routes/businesses'));
 
 // Health check with DB verification
 app.get('/health', async (req, res) => {
