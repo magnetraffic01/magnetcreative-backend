@@ -122,19 +122,42 @@ async function analyzeSubmission(submission, imageBase64, imageMimeType) {
   throw new Error('Todos los proveedores de IA fallaron.');
 }
 
-// OpenAI fallback
+// OpenAI fallback - uses SAME knowledge base and rubrics as Claude/Gemini
 async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
   const tipo = submission.tipo;
-  const systemPrompt = getOpenAISystemPrompt(tipo);
+  const { buildKnowledgeContext } = require('./knowledge-base');
+
+  const knowledgeContext = await buildKnowledgeContext(submission, submission._dbPool);
+
+  const lang = submission.lang || 'es';
+  const langInstruction = lang === 'en'
+    ? '\nIMPORTANT: Respond ALL text fields in ENGLISH.'
+    : '\nIMPORTANTE: Responde TODOS los campos de texto en ESPANOL.';
+
+  const systemPrompt = `Eres el Director Creativo de MagnetCreative. Tu trabajo es:
+1. EVALUAR usando UNICAMENTE la rubrica que viene en el CONTEXTO (NO inventes tu propia rubrica)
+2. ENSENAR dando VERSION CORREGIDA de cada problema
+3. Dar ALTERNATIVAS listas para copiar y usar
+
+REGLA CRITICA DE SCORING:
+- La rubrica con los criterios y sus PESOS viene en el contexto
+- Evalua CADA criterio por separado usando el peso que indica la rubrica
+- El score FINAL es la SUMA de todos los criterios con sus pesos
+- MUESTRA el desglose en el resumen
+- Si score >= 70: veredicto = "aprobar". Si 40-69: "cambios". Si <40: "rechazar"
+
+Responde SOLO con JSON valido sin markdown.
+JSON: {"score":0-100,"resumen":"Desglose: [criterio: X/peso...]. Total: X/100.","texto_legible":true/false,"cta_presente":true/false,"cta_descripcion":"","hook_presente":true/false,"hook_descripcion":"","fortalezas":[""],"problemas":["con VERSION CORREGIDA"],"recomendaciones":[{"area":"","detalle":"problema + CORRECCION","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar","uso_recomendado":"feed|stories|reels|todos"}`;
 
   let userText = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n`;
   if (submission.descripcion) userText += `- Descripcion: ${submission.descripcion}\n`;
-  if (submission._platformContext) userText += submission._platformContext;
-  userText += '\nEvalua este creativo.';
+  userText += knowledgeContext;
+  userText += langInstruction;
+  userText += '\nEvalua este creativo usando la rubrica del contexto.';
 
   let messages;
-  if (tipo === 'email') {
-    messages = [{ role: 'user', content: `CORREO:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Contenido:\n${submission.contenido_email}\n\nEvalua.` }];
+  if (tipo === 'email' || tipo === 'sms' || tipo === 'whatsapp') {
+    messages = [{ role: 'user', content: `CONTENIDO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Contenido:\n${submission.contenido_email}\n${knowledgeContext}${langInstruction}\n\nEvalua usando la rubrica del contexto.` }];
   } else if (imageBase64) {
     messages = [{ role: 'user', content: [
       { type: 'image_url', image_url: { url: `data:${imageMimeType || 'image/jpeg'};base64,${imageBase64}` } },
@@ -144,11 +167,19 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
     messages = [{ role: 'user', content: userText }];
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${config.openaiApiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: systemPrompt }, ...messages], max_tokens: 4000, temperature: 0.3 })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+  let response;
+  try {
+    response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${config.openaiApiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: systemPrompt }, ...messages], max_tokens: 4000, temperature: 0.3 }),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const data = await response.json();
   if (data.error) throw new Error(`OpenAI: ${data.error.message}`);
@@ -156,17 +187,6 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
   const parsed = parseAIResponse(text, 'OpenAI');
   console.log(`[OpenAI] score=${parsed.score}, veredicto=${parsed.veredicto}`);
   return parsed;
-}
-
-function getOpenAISystemPrompt(tipo) {
-  const base = 'Eres Director Creativo de MagnetCreative. Evaluas creativos digitales. Responde SOLO con JSON sin markdown.';
-  const schemas = {
-    imagen: `${base}\nJSON: {"score":0-100,"resumen":"2 oraciones","texto_legible":true/false,"dimensiones_correctas":true/false,"cta_presente":true/false,"cta_descripcion":"","fortalezas":[""],"problemas":[""],"recomendaciones":[{"area":"","detalle":"","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar","uso_recomendado":"feed|stories|reels|todos"}`,
-    email: `${base}\nJSON: {"score":0-100,"resumen":"","asunto_efectivo":true/false,"cta_presente":true/false,"cta_descripcion":"","fortalezas":[""],"problemas":[""],"recomendaciones":[{"area":"","detalle":"","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar"}`,
-    presentacion: `${base}\nJSON: {"score":0-100,"resumen":"","primer_slide_impacto":true/false,"cta_presente":true/false,"fortalezas":[""],"problemas":[""],"recomendaciones":[{"area":"","detalle":"","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar"}`,
-    plantilla: `${base}\nJSON: {"score":0-100,"resumen":"","texto_legible":true/false,"cta_presente":true/false,"fortalezas":[""],"problemas":[""],"recomendaciones":[{"area":"","detalle":"","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar"}`
-  };
-  return schemas[tipo] || schemas.imagen;
 }
 
 module.exports = { analyzeSubmission };
