@@ -30,14 +30,26 @@ async function extractText(file) {
   return cleanText(text);
 }
 
-// GET /knowledge-base - List all KB entries
+// GET /knowledge-base - List KB entries (filtered by role/tenant)
 router.get('/', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const result = await pool.query(
-      'SELECT * FROM knowledge_base ORDER BY updated_at DESC'
-    );
-    res.json({ items: result.rows });
+    let result;
+    if (req.user.role === 'super_admin') {
+      // super_admin sees everything
+      result = await pool.query('SELECT * FROM knowledge_base ORDER BY updated_at DESC');
+    } else {
+      // tenant_admin/admin sees universal (read-only) + their own tenant entries
+      result = await pool.query(
+        'SELECT * FROM knowledge_base WHERE tenant_id IS NULL OR tenant_id = $1 ORDER BY updated_at DESC',
+        [req.user.tenant_id]
+      );
+    }
+    const items = result.rows.map(row => ({
+      ...row,
+      is_universal: !row.tenant_id
+    }));
+    res.json({ items });
   } catch (error) { next(error); }
 });
 
@@ -46,9 +58,19 @@ router.post('/', authenticate, requireAdmin, upload.single('documento'), async (
   try {
     const pool = req.app.get('db');
     const { titulo, tipo, negocio, contenido, categoria } = req.body;
+    let { tenant_id } = req.body;
 
     if (!titulo) {
       return res.status(400).json({ error: 'Titulo es requerido' });
+    }
+
+    // Access control: determine tenant_id for the new entry
+    if (req.user.role === 'super_admin') {
+      // super_admin can create universal (tenant_id=null) or for any tenant
+      tenant_id = tenant_id ? parseInt(tenant_id) : null;
+    } else {
+      // tenant_admin always creates with their own tenant_id (cannot create universal)
+      tenant_id = req.user.tenant_id;
     }
 
     // If document uploaded, extract text
@@ -73,13 +95,14 @@ router.post('/', authenticate, requireAdmin, upload.single('documento'), async (
     }
 
     const result = await pool.query(
-      `INSERT INTO knowledge_base (titulo, tipo, negocio, contenido, categoria, documento_nombre, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO knowledge_base (titulo, tipo, negocio, contenido, categoria, documento_nombre, created_by, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [titulo, tipo || 'rules', negocio || null, finalContenido, categoria || 'general', documentoNombre, req.user.id]
+      [titulo, tipo || 'rules', negocio || null, finalContenido, categoria || 'general', documentoNombre, req.user.id, tenant_id]
     );
 
-    res.status(201).json({ item: result.rows[0] });
+    const item = { ...result.rows[0], is_universal: !result.rows[0].tenant_id };
+    res.status(201).json({ item });
   } catch (error) { next(error); }
 });
 
@@ -88,6 +111,17 @@ router.put('/:id', authenticate, requireAdmin, upload.single('documento'), async
   try {
     const pool = req.app.get('db');
     const { titulo, tipo, negocio, contenido, categoria } = req.body;
+
+    // Access control: check ownership
+    if (req.user.role !== 'super_admin') {
+      const check = await pool.query('SELECT tenant_id FROM knowledge_base WHERE id = $1', [req.params.id]);
+      if (check.rows.length === 0) return res.status(404).json({ error: 'Entrada no encontrada' });
+      const entry = check.rows[0];
+      // tenant_admin cannot edit universal entries or other tenants' entries
+      if (!entry.tenant_id || entry.tenant_id !== req.user.tenant_id) {
+        return res.status(403).json({ error: 'No tienes permiso para editar esta entrada' });
+      }
+    }
 
     let finalContenido = contenido;
     let documentoNombre = null;
@@ -123,7 +157,8 @@ router.put('/:id', authenticate, requireAdmin, upload.single('documento'), async
 
     const result = await pool.query(query, params);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Entrada no encontrada' });
-    res.json({ item: result.rows[0] });
+    const item = { ...result.rows[0], is_universal: !result.rows[0].tenant_id };
+    res.json({ item });
   } catch (error) { next(error); }
 });
 
@@ -131,6 +166,18 @@ router.put('/:id', authenticate, requireAdmin, upload.single('documento'), async
 router.delete('/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
+
+    // Access control: check ownership
+    if (req.user.role !== 'super_admin') {
+      const check = await pool.query('SELECT tenant_id FROM knowledge_base WHERE id = $1', [req.params.id]);
+      if (check.rows.length === 0) return res.status(404).json({ error: 'Entrada no encontrada' });
+      const entry = check.rows[0];
+      // tenant_admin cannot delete universal entries or other tenants' entries
+      if (!entry.tenant_id || entry.tenant_id !== req.user.tenant_id) {
+        return res.status(403).json({ error: 'No tienes permiso para eliminar esta entrada' });
+      }
+    }
+
     const result = await pool.query(
       'DELETE FROM knowledge_base WHERE id = $1 RETURNING id',
       [req.params.id]

@@ -335,6 +335,7 @@ app.use('/knowledge-base', require('./routes/knowledge-base'));
 app.use('/feed', require('./routes/feed'));
 app.use('/tenants', require('./routes/tenants'));
 app.use('/businesses', require('./routes/businesses'));
+app.use('/heygen', require('./routes/heygen'));
 
 // Health check with DB verification
 app.get('/health', async (req, res) => {
