@@ -48,7 +48,9 @@ const BRAND_CONTEXT = {
 };
 
 /**
- * Generate an improved image using GPT-4o based on AI recommendations
+ * Generate an improved image based on AI recommendations.
+ * If original image exists on disk, uses OpenAI image edit (sends original + instructions).
+ * If no original image, generates from scratch using description.
  */
 async function generateImprovedImage(submission, recommendations, pool) {
   const fortalezas = Array.isArray(recommendations.fortalezas) ? recommendations.fortalezas : [];
@@ -68,10 +70,25 @@ async function generateImprovedImage(submission, recommendations, pool) {
     resumen: submission.ai_resumen
   });
 
+  // Try to get original image from disk for editing
+  let originalImagePath = null;
+  if (submission.archivo_url) {
+    const { getFilePath } = require('./file-storage');
+    originalImagePath = getFilePath(submission.archivo_url);
+  }
+
   console.log(`[Generation] Generating improved image for submission #${submission.id}`);
+  console.log(`[Generation] Original image: ${originalImagePath ? 'found' : 'not found (generating from scratch)'}`);
   console.log(`[Generation] Prompt length: ${promptText.length} chars`);
 
-  const imageBuffer = await callOpenAIImageGeneration(promptText);
+  let imageBuffer;
+  if (originalImagePath) {
+    // EDIT mode: send original image + improvement instructions
+    imageBuffer = await callOpenAIImageEdit(originalImagePath, promptText);
+  } else {
+    // GENERATE mode: create from scratch (no original available)
+    imageBuffer = await callOpenAIImageGeneration(promptText);
+  }
   const filename = saveFile(imageBuffer, `generated_${submission.id}.png`, `gen_${submission.id}`);
 
   // Get current max version for this submission
@@ -258,7 +275,78 @@ IMPORTANT: Keep what worked from the previous version but apply the client's fee
 }
 
 /**
- * Call OpenAI image generation API
+ * Call OpenAI image EDIT API - sends original image + improvement instructions
+ * Uses gpt-image-1 which supports image input for editing
+ */
+async function callOpenAIImageEdit(imagePath, promptText) {
+  if (!config.openaiApiKey) {
+    throw new Error('OpenAI API key not configured.');
+  }
+
+  const fs = require('fs');
+  const safePrompt = promptText.substring(0, 4000);
+
+  console.log(`[Generation] Using image edit mode with original: ${imagePath}`);
+
+  // Use FormData to send image + prompt to the edits endpoint
+  const { FormData, File } = require('node:buffer').Blob ? { FormData: globalThis.FormData, File: globalThis.File } : {};
+
+  // Read original image
+  const imageBuffer = fs.readFileSync(imagePath);
+  const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
+
+  const formData = new FormData();
+  formData.append('model', 'gpt-image-1');
+  formData.append('image[]', imageBlob, 'original.png');
+  formData.append('prompt', safePrompt);
+  formData.append('n', '1');
+  formData.append('size', '1024x1024');
+  formData.append('quality', 'high');
+
+  const controller = new AbortController();
+  const editTimeout = setTimeout(() => controller.abort(), 120000);
+  let response;
+  try {
+    response = await fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.openaiApiKey}`,
+      },
+      body: formData,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(editTimeout);
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Generation] Image edit failed: ${response.status} - ${errorText.substring(0, 300)}`);
+    // Fallback to generation from scratch
+    console.log('[Generation] Falling back to generation from scratch...');
+    return callOpenAIImageGeneration(promptText);
+  }
+
+  const data = await response.json();
+
+  if (data.data?.[0]?.b64_json) {
+    const result = Buffer.from(data.data[0].b64_json, 'base64');
+    console.log(`[Generation] Image edit successful (${Math.round(result.length / 1024)}KB)`);
+    return result;
+  }
+  if (data.data?.[0]?.url) {
+    const imgRes = await fetch(data.data[0].url);
+    const arrayBuf = await imgRes.arrayBuffer();
+    const result = Buffer.from(arrayBuf);
+    console.log(`[Generation] Image edit downloaded (${Math.round(result.length / 1024)}KB)`);
+    return result;
+  }
+
+  throw new Error('OpenAI returned no image data from edit');
+}
+
+/**
+ * Call OpenAI image generation API (from scratch)
  * Tries gpt-image-1 first, falls back to dall-e-3
  */
 async function callOpenAIImageGeneration(promptText) {
