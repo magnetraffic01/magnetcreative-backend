@@ -7,6 +7,22 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Rate limiter for password reset
+const resetRateLimitMap = new Map();
+function resetRateLimit(email, maxPerHour = 3) {
+  const key = email.toLowerCase();
+  const now = Date.now();
+  const hourAgo = now - 3600000;
+
+  if (!resetRateLimitMap.has(key)) resetRateLimitMap.set(key, []);
+  const timestamps = resetRateLimitMap.get(key).filter(t => t > hourAgo);
+  resetRateLimitMap.set(key, timestamps);
+
+  if (timestamps.length >= maxPerHour) return false;
+  timestamps.push(now);
+  return true;
+}
+
 // POST /auth/login
 router.post('/login', async (req, res, next) => {
   try {
@@ -158,6 +174,10 @@ router.post('/forgot-password', async (req, res, next) => {
     const { email } = req.body;
 
     if (!email) return res.status(400).json({ error: 'Email required' });
+
+    if (!resetRateLimit(email)) {
+      return res.status(429).json({ error: 'Too many reset attempts. Try again in 1 hour.' });
+    }
 
     const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (result.rows.length > 0) {

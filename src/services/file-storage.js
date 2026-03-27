@@ -3,8 +3,8 @@ const path = require('path');
 const crypto = require('crypto');
 
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
-const MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
-const MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
+const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days (enough for admin review cycle)
+const MAX_TOTAL_BYTES = 3 * 1024 * 1024 * 1024; // 3GB
 const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 // Ensure uploads directory exists
@@ -94,6 +94,9 @@ function cleanup() {
   if (deleted > 0) {
     console.log(`[FileStorage] Cleanup: ${deleted} files deleted, ${Math.round(freedBytes / 1024 / 1024)}MB freed, ${Math.round(totalSize / 1024 / 1024)}MB remaining`);
   }
+  if (deleted === 0) {
+    console.log(`[FileStorage] Cleanup: no files to delete, ${Math.round(totalSize / 1024 / 1024)}MB total`);
+  }
 }
 
 // Start periodic cleanup
@@ -102,7 +105,7 @@ function startCleanupSchedule() {
   cleanup();
   // Then every 6 hours
   setInterval(cleanup, CLEANUP_INTERVAL_MS);
-  console.log('[FileStorage] Cleanup scheduled every 6 hours (max 3 days, max 2GB)');
+  console.log('[FileStorage] Cleanup scheduled every 6 hours (max 14 days, max 3GB)');
 }
 
 module.exports = { saveFile, getFilePath, cleanup, startCleanupSchedule, UPLOADS_DIR };

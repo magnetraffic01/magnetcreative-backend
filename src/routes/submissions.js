@@ -37,6 +37,17 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 // Try n8n async first, fallback to sync analysis
 async function analyzeOrDispatch(submission, pool, imageBase64, imageMimeType) {
+  // Prevent duplicate analysis
+  const lockCheck = await pool.query(
+    "SELECT id FROM submissions WHERE id = $1 AND estado = 'analizando' AND ai_analyzed_at IS NOT NULL",
+    [submission.id]
+  );
+  if (lockCheck.rows.length > 0) {
+    console.log(`[Submission] #${submission.id}: Already analyzed, skipping duplicate`);
+    const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
+    return { async: false, submission: result.rows[0] };
+  }
+
   // Try n8n dispatch (async)
   const dispatched = await dispatchToN8n(submission, pool);
   if (dispatched) {
