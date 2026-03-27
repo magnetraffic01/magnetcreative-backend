@@ -19,7 +19,7 @@ router.post('/:id/chat', authenticate, async (req, res, next) => {
     if (subResult.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
 
     const submission = subResult.rows[0];
-    if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && submission.user_id !== req.user.id) {
       return res.status(403).json({ error: 'No autorizado' });
     }
 
@@ -61,7 +61,7 @@ router.get('/:id/chat', authenticate, async (req, res, next) => {
 
     const subResult = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [req.params.id]);
     if (subResult.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
-    if (req.user.role !== 'admin' && subResult.rows[0].user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && subResult.rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'No autorizado' });
     }
 

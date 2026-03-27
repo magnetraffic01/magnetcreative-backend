@@ -58,7 +58,7 @@ router.post('/:id/generate', authenticate, async (req, res, next) => {
     const submission = subResult.rows[0];
 
     // Verify ownership or admin
-    if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && submission.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
@@ -125,7 +125,7 @@ router.post('/:id/iterate', authenticate, async (req, res, next) => {
     const submission = subResult.rows[0];
 
     // Verify ownership or admin
-    if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && submission.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
@@ -183,7 +183,7 @@ router.get('/:id/versions', authenticate, async (req, res, next) => {
     }
 
     const submission = subResult.rows[0];
-    if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && submission.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
@@ -222,7 +222,7 @@ router.get('/:id/versions/:versionId/file', authenticate, async (req, res, next)
       return res.status(404).json({ error: 'Version not found' });
     }
 
-    if (req.user.role !== 'admin' && result.rows[0].user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && result.rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'No tienes acceso' });
     }
 
@@ -267,7 +267,7 @@ router.post('/:id/submit-final', authenticate, async (req, res, next) => {
 
     const submission = subResult.rows[0];
 
-    if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && submission.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 

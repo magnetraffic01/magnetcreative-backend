@@ -329,7 +329,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    if (req.user.role !== 'admin' && result.rows[0].user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && result.rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
     const sub = result.rows[0];
@@ -347,7 +347,7 @@ router.get('/:id/file', authenticate, async (req, res, next) => {
     const pool = req.app.get('db');
     const result = await pool.query('SELECT archivo_url, archivo_nombre, tipo, user_id FROM submissions WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    if (req.user.role !== 'admin' && result.rows[0].user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && result.rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
 
@@ -389,7 +389,7 @@ router.post('/:id/archive', authenticate, async (req, res, next) => {
     const pool = req.app.get('db');
     const check = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [req.params.id]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    if (req.user.role !== 'admin' && check.rows[0].user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && check.rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
     const result = await pool.query(
@@ -406,7 +406,7 @@ router.post('/:id/unarchive', authenticate, async (req, res, next) => {
     const pool = req.app.get('db');
     const check = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [req.params.id]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    if (req.user.role !== 'admin' && check.rows[0].user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && check.rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado / Access denied' });
     }
     const result = await pool.query(
@@ -429,7 +429,7 @@ router.post('/:id/resubmit', authenticate, upload.single('file'), async (req, re
     if (subResult.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const submission = subResult.rows[0];
 
-    if (req.user.role !== 'admin' && submission.user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && submission.user_id !== req.user.id) {
       return res.status(403).json({ error: 'No access' });
     }
     if (!req.file) return res.status(400).json({ error: 'File is required' });
@@ -510,7 +510,7 @@ router.post('/:id/share', authenticate, async (req, res, next) => {
     // Verify ownership or admin
     const subResult = await pool.query('SELECT user_id FROM submissions WHERE id = $1', [submissionId]);
     if (subResult.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    if (req.user.role !== 'admin' && subResult.rows[0].user_id !== req.user.id) {
+    if (!['admin', 'super_admin', 'tenant_admin', 'manager'].includes(req.user.role) && subResult.rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'No access' });
     }
 

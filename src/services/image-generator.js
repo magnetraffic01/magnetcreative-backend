@@ -57,6 +57,23 @@ async function generateImprovedImage(submission, recommendations, pool) {
   const problemas = Array.isArray(recommendations.problemas) ? recommendations.problemas : [];
   const recomendaciones = Array.isArray(recommendations.recomendaciones) ? recommendations.recomendaciones : [];
 
+  // Try to load brand context from businesses table
+  let brandFromDB = null;
+  if (pool) {
+    try {
+      const bizResult = await pool.query('SELECT * FROM businesses WHERE name = $1 LIMIT 1', [submission.negocio]);
+      if (bizResult.rows.length > 0) {
+        const biz = bizResult.rows[0];
+        brandFromDB = {
+          colors: biz.colors || '',
+          style: biz.visual_style || '',
+          tone: biz.tone || '',
+          rules: biz.rules || ''
+        };
+      }
+    } catch (e) { /* businesses table may not exist */ }
+  }
+
   const promptText = buildPrompt({
     negocio: submission.negocio,
     plataforma: submission.plataforma,
@@ -67,7 +84,8 @@ async function generateImprovedImage(submission, recommendations, pool) {
     problemas,
     recomendaciones,
     objetivo: submission.objetivo || submission.descripcion,
-    resumen: submission.ai_resumen
+    resumen: submission.ai_resumen,
+    brandFromDB
   });
 
   // Try to get original image from disk for editing
@@ -188,7 +206,7 @@ async function generateIteration(submission, versionId, clientFeedback, pool) {
 /**
  * Build a detailed prompt for initial generation from AI recommendations
  */
-function buildPrompt({ negocio, plataforma, titulo, descripcion, tipo, fortalezas, problemas, recomendaciones, objetivo, resumen }) {
+function buildPrompt({ negocio, plataforma, titulo, descripcion, tipo, fortalezas, problemas, recomendaciones, objetivo, resumen, brandFromDB }) {
   const platformSpecs = {
     facebook: '1080x1080 square for Facebook feed. Mobile-first. Less than 20% text (Meta rule).',
     instagram: '1080x1080 square for Instagram feed. Visual-first, minimal text, scroll-stopping.',
@@ -197,7 +215,7 @@ function buildPrompt({ negocio, plataforma, titulo, descripcion, tipo, fortaleza
     otro: 'General marketing creative. Professional, clear hierarchy.'
   };
 
-  const brand = BRAND_CONTEXT[negocio] || BRAND_CONTEXT['MagneTraffic'];
+  const brand = brandFromDB || BRAND_CONTEXT[negocio] || { colors: '', style: '', tone: '', rules: '' };
   const platformContext = platformSpecs[plataforma?.toLowerCase()] || platformSpecs['otro'];
 
   let prompt = `You are an expert advertising creative designer. Create a HIGH-CONVERTING ad image.

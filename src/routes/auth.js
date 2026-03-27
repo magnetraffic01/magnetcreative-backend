@@ -66,7 +66,7 @@ router.post('/create-user', authenticate, requireAdmin, async (req, res, next) =
 
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password and name required' });
 
-    const validRoles = ['creative', 'admin'];
+    const validRoles = ['creative', 'manager', 'admin', 'tenant_admin'];
     const finalRole = validRoles.includes(role) ? role : 'creative';
 
     // Role escalation prevention
@@ -175,7 +175,8 @@ router.post('/setup-admin', async (req, res, next) => {
 
     if (!password) return res.status(400).json({ error: 'Password required' });
 
-    const admin = await pool.query('SELECT id, password_hash FROM users WHERE email = $1', ['admin@magnetraffic.com']);
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@magnetraffic.com';
+    const admin = await pool.query('SELECT id, password_hash FROM users WHERE email = $1', [adminEmail]);
     if (admin.rows.length === 0) return res.status(404).json({ error: 'Admin user not found' });
 
     // Only allow setup if admin has no password (first-time setup)
@@ -184,7 +185,7 @@ router.post('/setup-admin', async (req, res, next) => {
     }
 
     const hash = await bcrypt.hash(password, 10);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2', [hash, 'admin@magnetraffic.com']);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2', [hash, adminEmail]);
 
     const token = jwt.sign({ userId: admin.rows[0].id }, config.jwtSecret, { expiresIn: '7d' });
     res.json({ message: 'Admin password set', token });

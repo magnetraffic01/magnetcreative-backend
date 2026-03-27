@@ -7,9 +7,34 @@ const config = require('./config');
 
 const app = express();
 
-// CORS
+// CORS - dynamic origin for multi-tenant support
 app.use(cors({
-  origin: [config.frontendUrl, 'https://studio.magnetraffic.com', 'http://localhost:5173', /\.lovable\.app$/, /\.magnetraffic\.com$/],
+  origin: function(origin, callback) {
+    // Allow no-origin requests (mobile apps, curl)
+    if (!origin) return callback(null, true);
+
+    // Always allow these
+    const allowed = [
+      config.frontendUrl,
+      'https://studio.magnetraffic.com',
+      'http://localhost:5173'
+    ];
+    if (allowed.includes(origin)) return callback(null, true);
+
+    // Allow any *.magnetraffic.com or *.magnetcreative.com subdomain (for tenants)
+    if (/\.(magnetraffic|magnetcreative)\.com$/.test(origin)) return callback(null, true);
+
+    // Allow lovable.app for development
+    if (/\.lovable\.app$/.test(origin)) return callback(null, true);
+
+    // Check tenant domains in DB (async)
+    pool.query('SELECT domain FROM tenants WHERE domain = $1 AND status = $2', [origin.replace(/^https?:\/\//, ''), 'active'])
+      .then(result => {
+        if (result.rows.length > 0) return callback(null, true);
+        callback(new Error('CORS not allowed'));
+      })
+      .catch(() => callback(null, false));
+  },
   credentials: true
 }));
 
