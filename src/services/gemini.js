@@ -47,8 +47,8 @@ async function analyzeContent(submission) {
 
   const lang = submission.lang || 'es';
   const langInstruction = lang === 'en'
-    ? '\n\nIMPORTANT: Respond ALL text fields (resumen, fortalezas, problemas, recomendaciones) in ENGLISH.'
-    : '\n\nIMPORTANTE: Responde TODOS los campos de texto (resumen, fortalezas, problemas, recomendaciones) en ESPANOL.';
+    ? '\n\nCRITICAL LANGUAGE RULE: You MUST write ALL text values in the JSON response in ENGLISH. This includes: resumen, every item in fortalezas array, every item in problemas array, every detalle in recomendaciones. The rubric is in Spanish but your RESPONSE must be in ENGLISH. Do NOT mix languages.'
+    : '\n\nREGLA DE IDIOMA: Responde TODOS los campos de texto del JSON en ESPANOL.';
 
   let userContext = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n- Formato: ${submission.formato || 'No especificado'}\n`;
   if (submission.descripcion) userContext += `- Descripcion: ${submission.descripcion}\n`;

@@ -205,9 +205,10 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
       console.log(`[Submission] #${submission.id}: NO FILE RECEIVED - multer did not process any file`);
     }
 
-    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), hasFile: ${!!imageBase64}, objetivo: ${objetivo || 'none'}`);
+    console.log(`[Submission] Created #${submission.id}: ${titulo} (${finalTipo}), hasFile: ${!!imageBase64}, objetivo: ${objetivo || 'none'}, lang: ${lang || 'es'}`);
 
     submission._dbPool = pool;
+    submission.lang = lang || 'es';
 
     try {
       const result2 = await analyzeOrDispatch(submission, pool, imageBase64, imageMimeType);

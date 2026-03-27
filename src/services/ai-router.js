@@ -131,8 +131,8 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
 
   const lang = submission.lang || 'es';
   const langInstruction = lang === 'en'
-    ? '\nIMPORTANT: Respond ALL text fields in ENGLISH.'
-    : '\nIMPORTANTE: Responde TODOS los campos de texto en ESPANOL.';
+    ? '\nCRITICAL LANGUAGE RULE: You MUST write ALL text values in ENGLISH. The rubric is in Spanish but your RESPONSE must be in ENGLISH. Do NOT mix languages.'
+    : '\nREGLA DE IDIOMA: Responde TODOS los campos de texto en ESPANOL.';
 
   const systemPrompt = `Eres el Director Creativo de MagnetCreative. Tu trabajo es:
 1. EVALUAR usando UNICAMENTE la rubrica que viene en el CONTEXTO (NO inventes tu propia rubrica)
