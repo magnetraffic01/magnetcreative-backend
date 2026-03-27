@@ -39,6 +39,8 @@ async function recordLearning(pool, submission, analysis) {
 
     const content = learnings.join('\n\n');
 
+    const tenantId = submission.tenant_id || null;
+
     // Check if we already have a learning entry for this negocio+tipo+objetivo
     const existing = await pool.query(
       `SELECT id, contenido FROM knowledge_base
@@ -57,15 +59,16 @@ async function recordLearning(pool, submission, analysis) {
       );
       console.log(`[Learning] Updated learning for ${negocio}/${tipo}/${objetivo}`);
     } else {
-      // Create new learning entry
+      // Create new learning entry with tenant_id
       await pool.query(
-        `INSERT INTO knowledge_base (titulo, tipo, negocio, contenido, categoria, created_at, updated_at)
-         VALUES ($1, 'rules', $2, $3, $4, NOW(), NOW())`,
+        `INSERT INTO knowledge_base (titulo, tipo, negocio, contenido, categoria, tenant_id, created_at, updated_at)
+         VALUES ($1, 'rules', $2, $3, $4, $5, NOW(), NOW())`,
         [
           `[auto-learning] Patrones detectados para ${tipo} de ${negocio}`,
           negocio,
           content,
-          `${tipo}_${objetivo}`
+          `${tipo}_${objetivo}`,
+          tenantId
         ]
       );
       console.log(`[Learning] Created learning for ${negocio}/${tipo}/${objetivo}`);
@@ -79,16 +82,21 @@ async function recordLearning(pool, submission, analysis) {
 /**
  * Get accumulated learnings for a given negocio/tipo/objetivo
  */
-async function getLearnings(pool, negocio, tipo, objetivo) {
+async function getLearnings(pool, negocio, tipo, objetivo, tenantId) {
   try {
-    const result = await pool.query(
-      `SELECT contenido FROM knowledge_base
+    let query = `SELECT contenido FROM knowledge_base
        WHERE negocio = $1 AND tipo = 'rules'
        AND titulo LIKE '%[auto-learning]%'
-       AND (categoria = $2 OR categoria = $3)
-       ORDER BY updated_at DESC LIMIT 3`,
-      [negocio, `${tipo}_${objetivo || 'general'}`, `${tipo}_general`]
-    );
+       AND (categoria = $2 OR categoria = $3)`;
+    const params = [negocio, `${tipo}_${objetivo || 'general'}`, `${tipo}_general`];
+
+    if (tenantId) {
+      params.push(tenantId);
+      query += ` AND (tenant_id IS NULL OR tenant_id = $${params.length})`;
+    }
+    query += ` ORDER BY updated_at DESC LIMIT 3`;
+
+    const result = await pool.query(query, params);
 
     if (result.rows.length === 0) return '';
 

@@ -2,6 +2,9 @@ const express = require('express');
 const { authenticate, requireSuperAdmin } = require('../middleware/auth');
 const router = express.Router();
 
+// Color format validation helper
+function isValidColor(c) { return !c || /^#[0-9A-Fa-f]{6}$/.test(c); }
+
 // GET /tenants - List all tenants
 router.get('/', authenticate, requireSuperAdmin, async (req, res, next) => {
   try {
@@ -17,6 +20,9 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res, next) => {
     const pool = req.app.get('db');
     const { name, slug, domain, logo_url, primary_color, secondary_color, plan, max_users, max_evaluations_month } = req.body;
     if (!name || !slug) return res.status(400).json({ error: 'name and slug required' });
+    if (!isValidColor(primary_color) || !isValidColor(secondary_color)) {
+      return res.status(400).json({ error: 'Invalid color format. Use #RRGGBB' });
+    }
 
     const result = await pool.query(
       `INSERT INTO tenants (name, slug, domain, logo_url, primary_color, secondary_color, plan, max_users, max_evaluations_month)
@@ -32,6 +38,9 @@ router.put('/:id', authenticate, requireSuperAdmin, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
     const { name, domain, logo_url, primary_color, secondary_color, plan, status, max_users, max_evaluations_month } = req.body;
+    if (!isValidColor(primary_color) || !isValidColor(secondary_color)) {
+      return res.status(400).json({ error: 'Invalid color format. Use #RRGGBB' });
+    }
     const result = await pool.query(
       `UPDATE tenants SET name = COALESCE($1, name), domain = COALESCE($2, domain), logo_url = COALESCE($3, logo_url),
        primary_color = COALESCE($4, primary_color), secondary_color = COALESCE($5, secondary_color),

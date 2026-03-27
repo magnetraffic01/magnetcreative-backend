@@ -639,22 +639,45 @@ async function buildKnowledgeContext(submission, pool) {
 
       // Internal businesses get their KB + global entries
       // External businesses get ONLY their own KB entries (strict isolation)
+      // Tenant filtering: only load KB entries for the submission's tenant (or global with NULL tenant_id)
+      const submissionTenantId = submission.tenant_id || null;
       let kbResult;
       if (isInternal) {
-        kbResult = await pool.query(
-          `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
-           WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
-           AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
-           ORDER BY updated_at DESC`,
-          [negocioName, relevantCategorias]
-        );
+        if (submissionTenantId) {
+          kbResult = await pool.query(
+            `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+             WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
+             AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
+             AND (tenant_id IS NULL OR tenant_id = $3)
+             ORDER BY updated_at DESC`,
+            [negocioName, relevantCategorias, submissionTenantId]
+          );
+        } else {
+          kbResult = await pool.query(
+            `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+             WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
+             AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
+             ORDER BY updated_at DESC`,
+            [negocioName, relevantCategorias]
+          );
+        }
       } else {
-        kbResult = await pool.query(
-          `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
-           WHERE negocio = $1
-           ORDER BY updated_at DESC`,
-          [negocioName]
-        );
+        if (submissionTenantId) {
+          kbResult = await pool.query(
+            `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+             WHERE negocio = $1
+             AND (tenant_id IS NULL OR tenant_id = $2)
+             ORDER BY updated_at DESC`,
+            [negocioName, submissionTenantId]
+          );
+        } else {
+          kbResult = await pool.query(
+            `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+             WHERE negocio = $1
+             ORDER BY updated_at DESC`,
+            [negocioName]
+          );
+        }
       }
       if (kbResult.rows.length > 0) {
         context += `\n\nREGLAS ADICIONALES DEL ADMIN (Base de Conocimiento):\n`;
@@ -679,7 +702,7 @@ async function buildKnowledgeContext(submission, pool) {
   // Load auto-learnings from previous evaluations
   try {
     const { getLearnings } = require('./learning');
-    const learnings = await getLearnings(pool, negocioName, tipo, submission.objetivo);
+    const learnings = await getLearnings(pool, negocioName, tipo, submission.objetivo, submission.tenant_id);
     if (learnings) context += learnings;
   } catch (e) {
     // Learning module failure should not break evaluation

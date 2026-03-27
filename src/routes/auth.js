@@ -69,15 +69,24 @@ router.post('/create-user', authenticate, requireAdmin, async (req, res, next) =
     const validRoles = ['creative', 'admin'];
     const finalRole = validRoles.includes(role) ? role : 'creative';
 
+    // Role escalation prevention
+    const allowedRoles = req.user.role === 'super_admin'
+      ? ['creative', 'manager', 'admin', 'tenant_admin', 'super_admin']
+      : ['creative', 'manager']; // tenant_admin can only create creative and manager
+    if (finalRole && !allowedRoles.includes(finalRole)) {
+      return res.status(403).json({ error: 'Cannot assign that role / No puedes asignar ese rol' });
+    }
+
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) return res.status(409).json({ error: 'Email already exists' });
 
     const hash = await bcrypt.hash(password, 10);
     const negociosArray = negocios || (negocio ? [negocio] : []);
+    const tenantId = req.body.tenant_id || req.user.tenant_id;
 
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, name, role, negocio, negocios) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, name, role, negocio, negocios',
-      [email, hash, name, finalRole, negociosArray[0] || null, JSON.stringify(negociosArray)]
+      'INSERT INTO users (email, password_hash, name, role, negocio, negocios, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, email, name, role, negocio, negocios, tenant_id',
+      [email, hash, name, finalRole, negociosArray[0] || null, JSON.stringify(negociosArray), tenantId || null]
     );
 
     res.status(201).json({ user: result.rows[0] });
@@ -108,6 +117,14 @@ router.put('/users/:id', authenticate, requireAdmin, async (req, res, next) => {
     if (email) {
       const emailCheck = await pool.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, userId]);
       if (emailCheck.rows.length > 0) return res.status(409).json({ error: 'Email ya existe' });
+    }
+
+    // Role escalation prevention
+    const allowedRoles = req.user.role === 'super_admin'
+      ? ['creative', 'manager', 'admin', 'tenant_admin', 'super_admin']
+      : ['creative', 'manager']; // tenant_admin can only create creative and manager
+    if (role && !allowedRoles.includes(role)) {
+      return res.status(403).json({ error: 'Cannot assign that role / No puedes asignar ese rol' });
     }
 
     const negociosArray = negocios || (negocio ? [negocio] : []);

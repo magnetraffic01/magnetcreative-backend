@@ -62,12 +62,18 @@ router.post('/review/:id', authenticate, requireAdmin, async (req, res, next) =>
 router.get('/pending', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
+    const pendingParams = [];
+    let pendingTenantFilter = '';
+    if (req.user.role !== 'super_admin' && req.user.tenant_id) {
+      pendingParams.push(req.user.tenant_id);
+      pendingTenantFilter = ` AND s.tenant_id = $1`;
+    }
     const result = await pool.query(`
       SELECT s.*, u.name as submitted_by
       FROM submissions s JOIN users u ON s.user_id = u.id
-      WHERE s.estado = 'evaluado'
+      WHERE s.estado = 'evaluado'${pendingTenantFilter}
       ORDER BY s.ai_score DESC, s.created_at ASC
-    `);
+    `, pendingParams);
     res.json({ submissions: result.rows });
   } catch (error) { next(error); }
 });
@@ -77,23 +83,32 @@ router.get('/stats', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
 
+    // Tenant filtering for non-super_admin
+    const isSuperAdmin = req.user.role === 'super_admin';
+    const tenantParams = [];
+    let tenantFilter = '';
+    if (!isSuperAdmin && req.user.tenant_id) {
+      tenantParams.push(req.user.tenant_id);
+      tenantFilter = ` WHERE s.tenant_id = $1`;
+    }
+
     const general = await pool.query(`
       SELECT
         COUNT(*) as total,
-        COUNT(*) FILTER (WHERE estado = 'evaluado') as pendientes,
-        COUNT(*) FILTER (WHERE estado = 'aprobado') as aprobados,
-        COUNT(*) FILTER (WHERE estado = 'rechazado') as rechazados,
-        COUNT(*) FILTER (WHERE estado = 'cambios') as con_cambios,
-        ROUND(AVG(ai_score) FILTER (WHERE ai_score IS NOT NULL)) as score_promedio
-      FROM submissions
-    `);
+        COUNT(*) FILTER (WHERE s.estado = 'evaluado') as pendientes,
+        COUNT(*) FILTER (WHERE s.estado = 'aprobado') as aprobados,
+        COUNT(*) FILTER (WHERE s.estado = 'rechazado') as rechazados,
+        COUNT(*) FILTER (WHERE s.estado = 'cambios') as con_cambios,
+        ROUND(AVG(s.ai_score) FILTER (WHERE s.ai_score IS NOT NULL)) as score_promedio
+      FROM submissions s${tenantFilter}
+    `, tenantParams);
 
     const byNegocio = await pool.query(`
-      SELECT negocio, COUNT(*) as total,
-        ROUND(AVG(ai_score) FILTER (WHERE ai_score IS NOT NULL)) as score_promedio,
-        COUNT(*) FILTER (WHERE estado = 'aprobado') as aprobados
-      FROM submissions GROUP BY negocio ORDER BY total DESC
-    `);
+      SELECT s.negocio, COUNT(*) as total,
+        ROUND(AVG(s.ai_score) FILTER (WHERE s.ai_score IS NOT NULL)) as score_promedio,
+        COUNT(*) FILTER (WHERE s.estado = 'aprobado') as aprobados
+      FROM submissions s${tenantFilter} GROUP BY s.negocio ORDER BY total DESC
+    `, tenantParams);
 
     const byUser = await pool.query(`
       SELECT u.name, COUNT(*) as total,
@@ -103,14 +118,16 @@ router.get('/stats', authenticate, requireAdmin, async (req, res, next) => {
         COUNT(*) FILTER (WHERE s.estado = 'cambios') as con_cambios,
         COUNT(*) FILTER (WHERE s.estado = 'evaluado') as pendientes
       FROM submissions s JOIN users u ON s.user_id = u.id
+      ${!isSuperAdmin && req.user.tenant_id ? 'WHERE s.tenant_id = $1' : ''}
       GROUP BY u.name ORDER BY total DESC
-    `);
+    `, tenantParams);
 
     const recent = await pool.query(`
       SELECT s.*, u.name as submitted_by
       FROM submissions s JOIN users u ON s.user_id = u.id
+      ${!isSuperAdmin && req.user.tenant_id ? 'WHERE s.tenant_id = $1' : ''}
       ORDER BY s.created_at DESC LIMIT 10
-    `);
+    `, tenantParams);
 
     res.json({
       stats: general.rows[0],

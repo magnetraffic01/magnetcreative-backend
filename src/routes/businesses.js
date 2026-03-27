@@ -25,7 +25,9 @@ router.post('/', authenticate, requireAdmin, async (req, res, next) => {
     const { name, description, audience, tone, colors, visual_style, rules, products, urls } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
 
-    const tenantId = req.body.tenant_id || req.user.tenant_id;
+    const tenantId = req.user.role === 'super_admin' && req.body.tenant_id
+      ? req.body.tenant_id  // super_admin can specify
+      : req.user.tenant_id; // everyone else uses their own
     if (!tenantId) return res.status(400).json({ error: 'tenant_id required' });
 
     const result = await pool.query(
@@ -66,11 +68,21 @@ router.put('/:id', authenticate, requireAdmin, async (req, res, next) => {
 router.delete('/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const pool = req.app.get('db');
-    const check = await pool.query('SELECT tenant_id FROM businesses WHERE id = $1', [req.params.id]);
+    const check = await pool.query('SELECT tenant_id, name FROM businesses WHERE id = $1', [req.params.id]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     if (req.user.role !== 'super_admin' && check.rows[0].tenant_id !== req.user.tenant_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
+
+    // Check for existing submissions before deleting
+    const subCount = await pool.query(
+      'SELECT COUNT(*) as count FROM submissions WHERE negocio = $1 AND tenant_id = $2',
+      [check.rows[0].name, check.rows[0].tenant_id]
+    );
+    if (parseInt(subCount.rows[0].count) > 0) {
+      return res.status(409).json({ error: 'Cannot delete: business has submissions. Archive or rename instead.' });
+    }
+
     await pool.query('DELETE FROM businesses WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (error) { next(error); }

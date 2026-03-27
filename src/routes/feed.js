@@ -6,7 +6,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const pool = req.app.get('db');
-    const { estado, negocio, limit } = req.query;
+    const { estado, negocio, limit, tenant_id } = req.query;
 
     let query = `
       SELECT s.id, s.titulo, s.tipo, s.negocio, s.plataforma, s.estado,
@@ -23,6 +23,8 @@ router.get('/', async (req, res) => {
     const params = [];
     let idx = 1;
 
+    // Optional tenant scoping via query param
+    if (tenant_id) { query += ` AND s.tenant_id = $${idx++}`; params.push(tenant_id); }
     if (estado) { query += ` AND s.estado = $${idx++}`; params.push(estado); }
     if (negocio) { query += ` AND s.negocio = $${idx++}`; params.push(negocio); }
 
@@ -32,17 +34,23 @@ router.get('/', async (req, res) => {
 
     const result = await pool.query(query, params);
 
-    // Stats summary
-    const stats = await pool.query(`
+    // Stats summary (also tenant-scoped if provided)
+    let statsQuery = `
       SELECT
         COUNT(*) as total,
-        COUNT(*) FILTER (WHERE estado = 'evaluado') as pendientes_admin,
-        COUNT(*) FILTER (WHERE estado = 'aprobado') as aprobados,
-        COUNT(*) FILTER (WHERE estado = 'rechazado' OR estado = 'rechazado_ai') as rechazados,
-        COUNT(*) FILTER (WHERE estado = 'cambios') as con_cambios,
-        ROUND(AVG(ai_score) FILTER (WHERE ai_score IS NOT NULL)) as score_promedio
-      FROM submissions
-    `);
+        COUNT(*) FILTER (WHERE s.estado = 'evaluado') as pendientes_admin,
+        COUNT(*) FILTER (WHERE s.estado = 'aprobado') as aprobados,
+        COUNT(*) FILTER (WHERE s.estado = 'rechazado' OR s.estado = 'rechazado_ai') as rechazados,
+        COUNT(*) FILTER (WHERE s.estado = 'cambios') as con_cambios,
+        ROUND(AVG(s.ai_score) FILTER (WHERE s.ai_score IS NOT NULL)) as score_promedio
+      FROM submissions s
+    `;
+    const statsParams = [];
+    if (tenant_id) {
+      statsQuery += ` WHERE s.tenant_id = $1`;
+      statsParams.push(tenant_id);
+    }
+    const stats = await pool.query(statsQuery, statsParams);
 
     res.json({
       source: 'magnetcreative',
@@ -58,6 +66,13 @@ router.get('/', async (req, res) => {
 router.get('/pending', async (req, res) => {
   try {
     const pool = req.app.get('db');
+    const { tenant_id } = req.query;
+    const pendingParams = [];
+    let pendingTenantFilter = '';
+    if (tenant_id) {
+      pendingParams.push(tenant_id);
+      pendingTenantFilter = ` AND s.tenant_id = $1`;
+    }
     const result = await pool.query(`
       SELECT s.id, s.titulo, s.tipo, s.negocio, s.estado,
              s.ai_score, s.ai_resumen, s.ai_veredicto,
@@ -66,10 +81,10 @@ router.get('/pending', async (req, res) => {
              s.created_at
       FROM submissions s
       JOIN users u ON s.user_id = u.id
-      WHERE s.estado = 'evaluado'
+      WHERE s.estado = 'evaluado'${pendingTenantFilter}
       ORDER BY s.ai_score DESC, s.created_at ASC
       LIMIT 20
-    `);
+    `, pendingParams);
     res.json({ total: result.rows.length, submissions: result.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });

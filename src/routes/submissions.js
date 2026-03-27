@@ -171,10 +171,10 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 
     // Insert submission
     const result = await pool.query(`
-      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, descripcion, gemini_file_uri, objetivo, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'analizando')
+      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, descripcion, gemini_file_uri, objetivo, estado, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'analizando', $9)
       RETURNING *
-    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', descripcion, gemini_file_uri || null, objetivo || null]);
+    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', descripcion, gemini_file_uri || null, objetivo || null, req.user.tenant_id || null]);
 
     // Attach objetivo for AI context
     result.rows[0].objetivo = objetivo;
@@ -236,10 +236,10 @@ router.post('/', authenticate, async (req, res, next) => {
     const finalTipo = tipo || 'video';
 
     const result = await pool.query(`
-      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'analizando')
+      INSERT INTO submissions (user_id, titulo, tipo, negocio, plataforma, formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo, estado, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'analizando', $12)
       RETURNING *
-    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo || null]);
+    `, [req.user.id, titulo, finalTipo, negocio, plataforma || 'facebook', formato, descripcion, archivo_url, gemini_file_uri, contenido_email, objetivo || null, req.user.tenant_id || null]);
 
     const submission = result.rows[0];
     submission.objetivo = objetivo;
@@ -281,10 +281,10 @@ router.post('/email', authenticate, async (req, res, next) => {
     }
 
     const result = await pool.query(`
-      INSERT INTO submissions (user_id, titulo, tipo, negocio, descripcion, contenido_email, objetivo, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'analizando')
+      INSERT INTO submissions (user_id, titulo, tipo, negocio, descripcion, contenido_email, objetivo, estado, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'analizando', $8)
       RETURNING *
-    `, [req.user.id, titulo, emailTipo || 'email', negocio, descripcion, contenido_email, objetivo || null]);
+    `, [req.user.id, titulo, emailTipo || 'email', negocio, descripcion, contenido_email, objetivo || null, req.user.tenant_id || null]);
 
     const submission = result.rows[0];
     submission.objetivo = objetivo;
@@ -307,6 +307,10 @@ router.get('/', authenticate, async (req, res, next) => {
     const params = [];
     if (include_archived !== 'true') { query += ` AND (s.archived IS NULL OR s.archived = false)`; }
     if (req.user.role === 'creative') { params.push(req.user.id); query += ` AND s.user_id = $${params.length}`; }
+    if (req.user.role !== 'super_admin' && req.user.tenant_id) {
+      params.push(req.user.tenant_id);
+      query += ` AND s.tenant_id = $${params.length}`;
+    }
     if (tipo) { params.push(tipo); query += ` AND s.tipo = $${params.length}`; }
     if (negocio) { params.push(negocio); query += ` AND s.negocio = $${params.length}`; }
     if (estado) { params.push(estado); query += ` AND s.estado = $${params.length}`; }
@@ -527,6 +531,9 @@ router.post('/:id/share', authenticate, async (req, res, next) => {
 });
 
 // GET /submissions/:id/shared/:token - Public view (no auth needed)
+// SECURITY NOTE: This endpoint is safe without tenant filtering because the share_token
+// is a cryptographically random 24-byte hex string unique per submission, and we check
+// both id + token + expiry. The token acts as an unguessable capability token.
 router.get('/:id/shared/:token', async (req, res, next) => {
   try {
     const pool = req.app.get('db');
