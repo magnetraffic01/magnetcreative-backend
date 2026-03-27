@@ -53,6 +53,75 @@ router.post('/login', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// POST /auth/register - Public registration (creates tenant + admin user + business)
+router.post('/register', async (req, res, next) => {
+  try {
+    const pool = req.app.get('db');
+    const { name, email, password, company_name, industry } = req.body;
+
+    if (!name || !email || !password || !company_name) {
+      return res.status(400).json({ error: 'Name, email, password and company name are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    // Check email doesn't exist
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Email already registered / Email ya registrado' });
+    }
+
+    // Create slug from company name
+    const slug = company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').substring(0, 50);
+
+    // Check slug doesn't exist
+    const existingTenant = await pool.query('SELECT id FROM tenants WHERE slug = $1', [slug]);
+    if (existingTenant.rows.length > 0) {
+      return res.status(409).json({ error: 'Company name already taken. Try a different name. / Nombre de empresa ya existe.' });
+    }
+
+    // 1. Create tenant
+    const tenantResult = await pool.query(
+      `INSERT INTO tenants (slug, name, plan, status)
+       VALUES ($1, $2, 'starter', 'active') RETURNING *`,
+      [slug, company_name]
+    );
+    const tenant = tenantResult.rows[0];
+
+    // 2. Create user as tenant_admin
+    const hash = await bcrypt.hash(password, 10);
+    const userResult = await pool.query(
+      `INSERT INTO users (email, password_hash, name, role, tenant_id)
+       VALUES ($1, $2, $3, 'tenant_admin', $4) RETURNING id, email, name, role, tenant_id`,
+      [email.toLowerCase(), hash, name, tenant.id]
+    );
+    const user = userResult.rows[0];
+
+    // 3. Create default business from industry
+    if (industry) {
+      try {
+        await pool.query(
+          `INSERT INTO businesses (tenant_id, name, description)
+           VALUES ($1, $2, $3)`,
+          [tenant.id, company_name, industry]
+        );
+      } catch (e) { /* business creation is optional */ }
+    }
+
+    // 4. Generate JWT
+    const token = jwt.sign({ userId: user.id, tenantId: tenant.id }, config.jwtSecret, { expiresIn: '7d' });
+
+    console.log(`[Register] New tenant: ${company_name} (${slug}), user: ${email}, industry: ${industry || 'none'}`);
+
+    res.json({
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, tenant_id: tenant.id },
+      token,
+      tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name, primary_color: tenant.primary_color, secondary_color: tenant.secondary_color }
+    });
+  } catch (error) { next(error); }
+});
+
 // GET /auth/me
 router.get('/me', authenticate, (req, res) => {
   res.json({ user: req.user });
