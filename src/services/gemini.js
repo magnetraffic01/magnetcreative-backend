@@ -59,8 +59,9 @@ async function analyzeContent(submission) {
 
   let contents;
 
-  if (tipo === 'email') {
-    userContext = `CORREO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Contenido:\n${submission.contenido_email}\n\nEvalua este correo y genera tu evaluacion.`;
+  if (tipo === 'email' || tipo === 'sms' || tipo === 'whatsapp') {
+    // Text-based content: keep knowledge context and lang instruction
+    userContext = `CONTENIDO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Contenido:\n${submission.contenido_email}\n\n${knowledgeContext}${langInstruction}\n\nEvalua usando la rubrica del contexto.`;
     contents = [{ role: 'user', parts: [{ text: userContext }] }];
   } else if (submission.gemini_file_uri) {
     const mimeTypes = {
@@ -86,7 +87,8 @@ async function analyzeContent(submission) {
   const generationConfig = { temperature: 0.3, maxOutputTokens: 8192 };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
+  const timeoutMs = tipo === 'video' ? 120000 : 60000; // 120s for video, 60s for others
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response;
   try {
     response = await fetch(`${GEMINI_URL}/models/${model}:generateContent?key=${config.geminiApiKey}`, {

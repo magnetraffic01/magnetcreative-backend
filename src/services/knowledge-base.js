@@ -110,30 +110,87 @@ REGLAS CULTURALES:
 
 const RUBRICA_VIDEO = `
 RUBRICA DE EVALUACION DE VIDEOS (100 PUNTOS):
+IMPORTANTE: Por cada problema, DEBES dar VERSION CORREGIDA (guion alternativo, hook mejorado, CTA reescrito).
 
-1. StoryBrand Adaptado (15 pts): Heroe definido, marca como guia, problema triple, plan claro, CTA, exito/fracaso, adaptacion hispana
-2. Hook y Retencion (12 pts): Hook en 3 segundos, prediccion de abandono, momentos de riesgo
-3. Copy y Titulos (12 pts): Titulo efectivo, textos en pantalla legibles, thumbnail compelling
-4. Guion y Estructura (12 pts): Estructura completa, mensaje funciona sin audio
-5. Creatividad (10 pts): Diferenciacion alta/media/baja
-6. Engagement (10 pts): Elementos interactivos, shareability
-7. Calidad Tecnica (10 pts): Resolucion, audio limpio, formato correcto, subtitulos
-8. Tiempos y Ritmo (8 pts): Duracion apropiada, ritmo de edicion
-9. Marca y Compartibilidad (6 pts): Branding apropiado, facil de compartir por WhatsApp
-10. CTA y Conversion (5 pts): CTA claro, siguiente paso definido
+1. HOOK EN PRIMEROS 3 SEGUNDOS (15 pts):
+   - ¿Captura atencion inmediata? ¿El usuario detiene el scroll?
+   - Hooks efectivos por plataforma:
+     FACEBOOK/INSTAGRAM: pregunta directa, dato impactante, testimonio rapido
+     TIKTOK: movimiento visual, sonido trending, text overlay disruptivo
+     YOUTUBE: promesa de valor en 5 segundos, pattern interrupt
+   - Si NO hay hook o es debil: maximo 5/15
+   - VERSION CORREGIDA: sugerir 2-3 hooks alternativos para el mismo video
+
+2. STORYTELLING Y ESTRUCTURA (12 pts):
+   - ¿Tiene inicio (problema) → desarrollo (solucion) → cierre (CTA)?
+   - ¿El mensaje funciona SIN audio? (80% de videos en feed se ven sin sonido)
+   - ¿Hay texto en pantalla que refuerce el mensaje?
+   - StoryBrand: cliente es heroe, marca es guia
+
+3. COPY Y TEXTOS EN PANTALLA (12 pts):
+   - Texto legible en mobile (fuente grande, contraste alto)
+   - Maximo 2 lineas por pantalla
+   - Subtitulos presentes y correctos
+   - Thumbnail compelling (para YouTube/Reels)
+
+4. CTA Y CONVERSION (12 pts):
+   - CTA aparece antes de que el usuario abandone
+   - CTA directo: "Llama ahora", "Link en bio", "Comenta SI"
+   - NO: "Visita nuestro sitio", "Mas informacion"
+   - ¿El siguiente paso esta claro?
+   - Si CTA es debil, dar 3 alternativas
+
+5. DURACION Y RITMO (10 pts):
+   - Reglas por plataforma:
+     TIKTOK: 15-60s ideal, max 3 min
+     INSTAGRAM REELS: 15-30s ideal, max 90s
+     FACEBOOK FEED: 15-30s ideal
+     YOUTUBE: depende del tipo (ad=15-30s, contenido=3-10min)
+     STORIES: max 15s por slide
+   - Ritmo: cortes cada 2-3 segundos para mantener atencion
+   - Si es demasiado largo: sugerir donde cortar
+
+6. CALIDAD TECNICA (10 pts):
+   - Resolucion minima 1080p
+   - Audio limpio (sin eco, sin ruido de fondo)
+   - Iluminacion adecuada (no oscuro, no sobreexpuesto)
+   - Formato correcto: 9:16 (vertical) para TikTok/Reels/Stories, 16:9 para YouTube/Feed
+   - Sin marcas de agua de apps de edicion
+
+7. COHERENCIA CON MARCA (8 pts):
+   - Colores, logo, tono consistentes con el negocio
+   - No se siente generico — tiene personalidad
+   - NO suena a "IA generica" o "video stock"
+
+8. ENGAGEMENT Y COMPARTIBILIDAD (8 pts):
+   - ¿La gente lo compartiria por WhatsApp?
+   - ¿Genera emocion, curiosidad, urgencia?
+   - ¿Tiene elementos interactivos? (pregunta, encuesta, reto)
+
+9. ADAPTACION CULTURAL (8 pts):
+   - Si audiencia hispana: emocion, familia, comunidad
+   - Si audiencia anglosajona: eficiencia, datos, resultados
+   - Sin estereotipos. Lenguaje natural, no traducido.
+
+10. CREATIVIDAD Y DIFERENCIACION (5 pts):
+    - ¿Se distingue de la competencia?
+    - ¿Tiene algo memorable?
+    - ¿Usa tendencias actuales de forma autentica?
 
 UMBRALES:
-- 90-100: Excelente - publicar inmediatamente
-- 80-89: Bueno - aprobado con observaciones menores
-- 70-79: Aceptable - aprobado con cambios recomendados
-- 50-69: Requiere cambios - no publicar sin correcciones
-- 0-49: Rechazado - rehacer el creativo
+- 90-100: Publicar inmediatamente
+- 80-89: Aprobado con observaciones menores
+- 70-79: Aprobado con cambios recomendados
+- 50-69: Requiere cambios - no publicar
+- 0-49: Rechazado - rehacer
 
-REGLAS CRITICAS:
-- Si abandono predicho > 40% antes del CTA, maximo 6/12 en Hook
-- No aprobar videos con calidad tecnica excelente pero storytelling debil
-- No aprobar videos que suenen a "IA generica" - deben tener personalidad humana
-- Evaluar si el video seria facil de compartir por WhatsApp
+ERRORES CRITICOS (descuentan 15 pts cada uno):
+- Sin hook en primeros 3 segundos
+- Sin CTA o CTA vago ("learn more")
+- Video no funciona sin audio y no tiene subtitulos
+- Duracion >60s para plataformas de scroll rapido sin justificacion
+- Calidad de audio inaceptable (eco, ruido)
+- Formato incorrecto para la plataforma (horizontal en TikTok)
 `;
 
 const TIPOS_VIDEO = `
@@ -183,14 +240,25 @@ ERRORES CRITICOS (descuentan 15 pts cada uno):
   reclutamiento: `
 CRITERIOS ESPECIFICOS PARA RECLUTAMIENTO:
 Objetivo: atraer distribuidores/afiliados al negocio.
+IMPORTANTE: Por cada problema, dar VERSION CORREGIDA del copy/CTA/estructura.
 
 EVALUAR:
-1. OPORTUNIDAD CLARA (25 pts): ¿Se entiende que es una oportunidad de ingreso? ¿Menciona cuanto pueden ganar? ¿Es realista?
-2. TESTIMONIOS (20 pts): ¿Muestra resultados reales de personas similares? ¿Son creibles?
-3. PLAN SIMPLE (20 pts): ¿Explica los pasos para empezar? ¿Parece facil?
-4. ELIMINACION DE BARRERAS (15 pts): ¿Aborda objeciones? (sin inversion, sin experiencia, desde tu celular)
-5. CTA DE RECLUTAMIENTO (10 pts): ¿Invita a unirse/registrarse/agendar llamada?
-6. PROFESIONALISMO (10 pts): ¿Se ve como negocio serio, no como esquema piramidal?
+1. OPORTUNIDAD CLARA (25 pts): ¿Se entiende que es una oportunidad de ingreso? ¿Menciona cuanto pueden ganar? ¿Es realista y no suena a estafa?
+   BUENO: "Gana $500-$2000/mes referiendo clientes desde tu celular"
+   MALO: "Hazte millonario sin hacer nada"
+2. TESTIMONIOS/PRUEBA SOCIAL (20 pts): ¿Muestra resultados reales? ¿Nombres, fotos, numeros verificables?
+   BUENO: "Maria G. de Orlando gano $1,200 en su primer mes"
+   MALO: Solo texto generico sin nombre ni foto
+3. PLAN SIMPLE (20 pts): ¿3 pasos claros para empezar? ¿Parece alcanzable?
+   Formato ideal: "1. Registrate gratis → 2. Comparte tu link → 3. Gana por cada referido"
+4. ELIMINACION DE BARRERAS (15 pts): ¿Aborda objeciones? Sin inversion, sin experiencia, desde tu celular, sin jefe, horario flexible
+5. CTA DE RECLUTAMIENTO (10 pts): "Agenda tu llamada", "Unete al equipo", "Aplica ahora" — NO "Mas informacion"
+6. PROFESIONALISMO (10 pts): ¿Se ve como negocio serio? NO parecer MLM/piramidal. Logo, colores de marca, lenguaje profesional.
+
+ERRORES CRITICOS:
+- Prometer ingresos sin base real (viola regulaciones FTC)
+- Parecer esquema piramidal (enfasis en "reclutar" en vez de "vender/servir")
+- Sin CTA claro para siguiente paso
 `,
 
   retencion: `
@@ -365,30 +433,137 @@ METRICAS DE RENDIMIENTO ESPERADAS (para referencia del evaluador):
 
 const RUBRICA_EMAIL = `
 RUBRICA DE EVALUACION DE EMAILS (100 PUNTOS):
+IMPORTANTE: Por cada problema, REESCRIBE la seccion corregida lista para copiar.
 
-1. Linea de Asunto (15 pts): Genera curiosidad, no es spam, menos de 50 caracteres
-2. StoryBrand (15 pts): Estructura heroe-guia-problema-plan-CTA
-3. Copy Persuasivo (15 pts): Natural, no suena a robot, personalizado
-4. CTA Claro (12 pts): Visible, directo, con urgencia apropiada
-5. Estructura Visual (12 pts): Header, body, CTA, footer, escaneable, mobile-friendly
-6. Personalizacion (10 pts): Usa nombre, contexto, segmentacion
-7. Longitud (8 pts): Apropiada para el objetivo (corto para leads, mas largo para educativo)
-8. Compliance (8 pts): Unsubscribe, direccion fisica, no misleading
-9. Valor (5 pts): Aporta algo al lector, no solo vende
+1. LINEA DE ASUNTO (15 pts):
+   - Genera curiosidad SIN ser spam
+   - Menos de 50 caracteres (se corta en mobile despues de 50)
+   - NO usar: MAYUSCULAS excesivas, $$$, "GRATIS!!!", emojis excesivos
+   - Tecnicas efectivas: pregunta, numero, urgencia, personalizacion
+   - Buenos: "{{nombre}}, tu descuento vence manana" / "3 opciones que no conocias"
+   - Malos: "OFERTA INCREIBLE NO TE LO PIERDAS!!!" / "Hola"
+   - Preheader: complementa el asunto, no lo repite. Max 85-100 chars.
+   - Si el asunto es debil, dar 3 alternativas
+
+2. ESTRUCTURA Y ESCANEABILIDAD (12 pts):
+   - Header con logo/branding (no muy grande)
+   - Body: parrafos cortos (2-3 lineas max), bullets, espaciado
+   - UN solo CTA principal (no 5 links diferentes)
+   - Footer: unsubscribe, direccion, redes
+   - Mobile-first: 600px max ancho, botones >44px, fuente >14px
+
+3. COPY PERSUASIVO (15 pts):
+   - Natural, como si un humano escribiera (no IA generica, no corporativo)
+   - Primera linea = hook (pain point o beneficio directo)
+   - Storytelling: problema → solucion → prueba → CTA
+   - Tono coherente con la marca
+   - Si suena generico, REESCRIBIR el copy completo
+
+4. CTA CLARO Y VISIBLE (12 pts):
+   - UN boton principal prominente (color contraste, texto directo)
+   - Texto del boton: "Agendar cita", "Cotizar ahora", "Descargar guia"
+   - NO: "Click aqui", "Mas informacion", "Saber mas"
+   - Boton visible sin scroll (above the fold en mobile)
+   - Si CTA es debil, dar 3 alternativas
+
+5. PERSONALIZACION (10 pts):
+   - Usa {{nombre}} del destinatario
+   - Referencia segmentacion (ubicacion, compra anterior, interes)
+   - Se siente 1-a-1, no masivo
+   - Merge tags correctos (no mostrar {{nombre}} literal)
+
+6. VALOR PARA EL LECTOR (10 pts):
+   - ¿El lector GANA algo al abrir este email? (descuento, info util, invitacion)
+   - No es solo venta agresiva
+   - Ratio 80% valor / 20% venta
+
+7. LONGITUD APROPIADA (8 pts):
+   - Leads: corto (100-150 palabras)
+   - Newsletter: medio (200-400 palabras)
+   - Educativo: puede ser largo pero con secciones claras
+   - NUNCA: wall of text sin formato
+
+8. COMPLIANCE (10 pts):
+   - Link de unsubscribe visible y funcional
+   - Direccion fisica del remitente
+   - Remitente identificado (nombre + empresa, no "noreply@")
+   - Cumple CAN-SPAM / GDPR
+   - No misleading (asunto coincide con contenido)
+
+9. ADAPTACION CULTURAL (8 pts):
+   - Hispano: calidez, familia, "tu" informal, emojis moderados
+   - Anglosajón: directo, profesional, datos, eficiencia
+   - Bilingue: ambas versiones igual de potentes
+
+METRICAS DE REFERENCIA:
+- Tasa apertura objetivo: 25%+ (promedio industria: 20%)
+- CTR objetivo: 3%+ (promedio: 2.5%)
+- Tasa de rebote: <2%
+
+PLANTILLAS DE REFERENCIA:
+Subject: "{{nombre}}, tu [beneficio] te espera"
+Preheader: "Solo hasta el [fecha]. [dato de urgencia]"
+Body: Hook (1 linea) → Problema (2 lineas) → Solucion (3 lineas) → Prueba social (1 linea) → CTA boton → PS con urgencia
 `;
 
 const RUBRICA_PRESENTACION = `
 RUBRICA DE EVALUACION DE PRESENTACIONES (100 PUNTOS):
+IMPORTANTE: Por cada slide con problemas, sugerir VERSION CORREGIDA del titulo y contenido.
 
-1. Primer Slide/Portada (15 pts): Impactante, titulo claro, genera interes
-2. StoryBrand (15 pts): Flujo problema-solucion-CTA a lo largo de las slides
-3. Diseno Visual (15 pts): Consistencia, colores de marca, profesionalismo
-4. Texto Conciso (12 pts): Maximo 6 lineas por slide, una idea por slide
-5. Flujo Logico (12 pts): La informacion progresa naturalmente
-6. CTA Final (10 pts): Slide final con accion clara
-7. Imagenes/Graficos (10 pts): Relevantes, alta calidad, apoyan el mensaje
-8. Legibilidad (6 pts): Fuentes legibles, contraste adecuado, tamano apropiado
-9. Branding (5 pts): Logo, colores, fuentes de marca consistentes
+1. PRIMER SLIDE / PORTADA (15 pts):
+   - Titulo que ENGANCHA (no "Presentacion de la empresa")
+   - Subtitulo con propuesta de valor clara
+   - Visual impactante (no template generico)
+   - Si es pitch deck: nombre + tagline + logo
+   - Si es brochure: crisis/pain point del cliente
+
+2. ESTRUCTURA NARRATIVA (15 pts):
+   - Flujo: Problema → Solucion → Prueba → Beneficios → CTA
+   - StoryBrand: cliente es heroe, marca es guia
+   - Cada slide avanza la historia (no repite ni divaga)
+   - Transiciones logicas entre secciones
+
+3. DISENO VISUAL (15 pts):
+   - Paleta de colores consistente (max 3-4 colores)
+   - Tipografia legible (titulos bold, cuerpo regular)
+   - Imagenes de alta calidad (no pixeladas, no stock generico)
+   - Espaciado y respiracion visual
+   - NO: slides sobrecargadas, fondos ruidosos
+
+4. TEXTO CONCISO (12 pts):
+   - Maximo 6 lineas por slide
+   - UNA idea por slide
+   - Bullets, no parrafos
+   - Si una slide tiene demasiado texto: sugerir como dividir en 2 slides
+
+5. FLUJO Y LONGITUD (10 pts):
+   - Pitch deck: 10-12 slides ideal
+   - Brochure: 8-15 slides segun producto
+   - Capacitacion: hasta 30 slides pero con secciones claras
+   - No repetir informacion entre slides
+
+6. CTA FINAL (10 pts):
+   - Ultima slide con accion DIRECTA
+   - Telefono grande, email, WhatsApp, link
+   - NO: "Gracias por su atencion" sin contacto
+   - Urgencia si aplica: "Oferta valida hasta..."
+
+7. IMAGENES Y GRAFICOS (8 pts):
+   - Relevantes al contenido (no decorativas)
+   - Graficos de datos claros y simples
+   - Iconos consistentes en estilo
+   - NO: clipart, imagenes con watermark
+
+8. LEGIBILIDAD (8 pts):
+   - Fuente minima 24pt para cuerpo, 32pt+ para titulos
+   - Contraste alto (texto oscuro en fondo claro o viceversa)
+   - Funciona proyectado Y en pantalla de celular
+
+9. BRANDING (7 pts):
+   - Logo en todas las slides (sutil, no invasivo)
+   - Colores de marca consistentes
+   - Fuentes de marca (no Comic Sans ni Papyrus)
+   - Footer con contacto o URL
 `;
 
 const RUBRICA_SMS = `
