@@ -801,63 +801,87 @@ async function buildKnowledgeContext(submission, pool) {
   }
 
   // Load admin-created KB entries from database
-  // Filter by negocio AND categoria (maps objetivo/tipo to relevant KB categories)
+  // Strategy: use semantic search (embeddings) if available, fallback to full load
   if (pool) {
     try {
-      // Map submission context to relevant KB categories
-      const relevantCategorias = ['general'];
-      if (objetivo) relevantCategorias.push(objetivo); // leads, reclutamiento, etc.
-      if (tipo === 'video') relevantCategorias.push('video_ads');
-      if (tipo === 'imagen' || tipo === 'plantilla') relevantCategorias.push('imagen_ads');
-      if (tipo === 'email') relevantCategorias.push('email_marketing');
-      relevantCategorias.push('copies'); // copies always relevant
-
-      // Internal businesses get their KB + global entries
-      // External businesses get ONLY their own KB entries (strict isolation)
-      // Tenant filtering: only load KB entries for the submission's tenant (or global with NULL tenant_id)
       const submissionTenantId = submission.tenant_id || null;
-      let kbResult;
-      if (isInternal) {
-        if (submissionTenantId) {
-          kbResult = await pool.query(
-            `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
-             WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
-             AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
-             AND (tenant_id IS NULL OR tenant_id = $3)
-             ORDER BY updated_at DESC`,
-            [negocioName, relevantCategorias, submissionTenantId]
-          );
-        } else {
-          kbResult = await pool.query(
-            `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
-             WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
-             AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
-             ORDER BY updated_at DESC`,
-            [negocioName, relevantCategorias]
-          );
+      let kbLoaded = false;
+
+      // Try semantic search first (if embeddings exist)
+      try {
+        const { searchKB } = require('./embedding');
+        const searchQuery = `${negocioName} ${tipo || ''} ${objetivo || ''} evaluacion creativo`;
+        const semanticResults = await searchKB(pool, searchQuery, {
+          negocio: isInternal ? negocioName : negocioName,
+          tenant_id: submissionTenantId,
+          limit: 8
+        });
+
+        if (semanticResults.length > 0) {
+          context += `\n\nREGLAS ADICIONALES DEL ADMIN (Base de Conocimiento - relevancia semantica):\n`;
+          for (const result of semanticResults) {
+            context += `\n[Relevancia: ${(result.similarity * 100).toFixed(0)}%] (${result.categoria || 'general'}):\n${result.chunk_text}\n`;
+          }
+          kbLoaded = true;
+          console.log(`[KB] Semantic search: ${semanticResults.length} chunks (query: "${searchQuery.substring(0, 50)}")`);
         }
-      } else {
-        if (submissionTenantId) {
-          kbResult = await pool.query(
-            `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
-             WHERE negocio = $1
-             AND (tenant_id IS NULL OR tenant_id = $2)
-             ORDER BY updated_at DESC`,
-            [negocioName, submissionTenantId]
-          );
-        } else {
-          kbResult = await pool.query(
-            `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
-             WHERE negocio = $1
-             ORDER BY updated_at DESC`,
-            [negocioName]
-          );
-        }
+      } catch (embErr) {
+        // Embeddings not available, fall through to legacy
+        console.log(`[KB] Semantic search unavailable: ${embErr.message}, using legacy load`);
       }
-      if (kbResult.rows.length > 0) {
-        context += `\n\nREGLAS ADICIONALES DEL ADMIN (Base de Conocimiento):\n`;
-        for (const entry of kbResult.rows) {
-          context += `\n[${entry.titulo}] (${entry.tipo}${entry.categoria ? ', ' + entry.categoria : ''}):\n${entry.contenido}\n`;
+
+      // Fallback: load all matching entries (legacy behavior)
+      if (!kbLoaded) {
+        const relevantCategorias = ['general'];
+        if (objetivo) relevantCategorias.push(objetivo);
+        if (tipo === 'video') relevantCategorias.push('video_ads');
+        if (tipo === 'imagen' || tipo === 'plantilla') relevantCategorias.push('imagen_ads');
+        if (tipo === 'email') relevantCategorias.push('email_marketing');
+        relevantCategorias.push('copies');
+
+        let kbResult;
+        if (isInternal) {
+          if (submissionTenantId) {
+            kbResult = await pool.query(
+              `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+               WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
+               AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
+               AND (tenant_id IS NULL OR tenant_id = $3)
+               ORDER BY updated_at DESC`,
+              [negocioName, relevantCategorias, submissionTenantId]
+            );
+          } else {
+            kbResult = await pool.query(
+              `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+               WHERE (negocio IS NULL OR negocio = '' OR negocio = $1)
+               AND (categoria IS NULL OR categoria = '' OR categoria = 'general' OR categoria = ANY($2))
+               ORDER BY updated_at DESC`,
+              [negocioName, relevantCategorias]
+            );
+          }
+        } else {
+          if (submissionTenantId) {
+            kbResult = await pool.query(
+              `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+               WHERE negocio = $1
+               AND (tenant_id IS NULL OR tenant_id = $2)
+               ORDER BY updated_at DESC`,
+              [negocioName, submissionTenantId]
+            );
+          } else {
+            kbResult = await pool.query(
+              `SELECT titulo, tipo, contenido, categoria FROM knowledge_base
+               WHERE negocio = $1
+               ORDER BY updated_at DESC`,
+              [negocioName]
+            );
+          }
+        }
+        if (kbResult.rows.length > 0) {
+          context += `\n\nREGLAS ADICIONALES DEL ADMIN (Base de Conocimiento):\n`;
+          for (const entry of kbResult.rows) {
+            context += `\n[${entry.titulo}] (${entry.tipo}${entry.categoria ? ', ' + entry.categoria : ''}):\n${entry.contenido}\n`;
+          }
         }
       }
     } catch (err) {

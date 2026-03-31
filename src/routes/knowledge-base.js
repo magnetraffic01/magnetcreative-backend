@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const { embedKBEntry, reembedAll } = require('../services/embedding');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -102,6 +103,12 @@ router.post('/', authenticate, requireAdmin, upload.single('documento'), async (
     );
 
     const item = { ...result.rows[0], is_universal: !result.rows[0].tenant_id };
+
+    // Generate embeddings async (don't block response)
+    embedKBEntry(pool, result.rows[0]).catch(err =>
+      console.error(`[KB] Embedding failed for entry ${result.rows[0].id}: ${err.message}`)
+    );
+
     res.status(201).json({ item });
   } catch (error) { next(error); }
 });
@@ -158,6 +165,12 @@ router.put('/:id', authenticate, requireAdmin, upload.single('documento'), async
     const result = await pool.query(query, params);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Entrada no encontrada' });
     const item = { ...result.rows[0], is_universal: !result.rows[0].tenant_id };
+
+    // Re-generate embeddings async
+    embedKBEntry(pool, result.rows[0]).catch(err =>
+      console.error(`[KB] Embedding update failed for entry ${result.rows[0].id}: ${err.message}`)
+    );
+
     res.json({ item });
   } catch (error) { next(error); }
 });
@@ -185,6 +198,23 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res, next) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Entrada no encontrada' });
     res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+// POST /knowledge-base/reembed - Re-embed all KB entries (super_admin only)
+router.post('/reembed', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Solo super_admin puede ejecutar re-embed' });
+    }
+    const pool = req.app.get('db');
+
+    // Run in background
+    reembedAll(pool).catch(err =>
+      console.error(`[KB] Re-embed failed: ${err.message}`)
+    );
+
+    res.json({ success: true, message: 'Re-embedding iniciado en background. Revisa los logs.' });
   } catch (error) { next(error); }
 });
 

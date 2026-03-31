@@ -318,6 +318,28 @@ async function runMigrations() {
       await pool.query(`UPDATE users SET role = 'super_admin' WHERE email = 'admin@magnetraffic.com'`);
       console.log('Migration 016 complete!');
     }
+
+    // Migration 017: pgvector + kb_embeddings for semantic search
+    const hasKBEmbeddings = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'kb_embeddings')`);
+    if (!hasKBEmbeddings.rows[0].exists) {
+      console.log('Running migration 017: pgvector + kb_embeddings...');
+      try {
+        const migration = fs.readFileSync(path.join(__dirname, '..', 'database', 'migrate-017-pgvector-embeddings.sql'), 'utf8');
+        await pool.query(migration);
+        console.log('Migration 017 complete!');
+        // Re-embed existing KB entries in background
+        const { reembedAll } = require('./services/embedding');
+        reembedAll(pool).catch(err => console.error(`[Embedding] Initial re-embed failed: ${err.message}`));
+      } catch (e) {
+        if (e.message.includes('could not open extension control file') || e.message.includes('extension "vector" is not available')) {
+          console.warn('[Migration 017] pgvector extension not installed on this PostgreSQL server.');
+          console.warn('[Migration 017] Install pgvector: https://github.com/pgvector/pgvector');
+          console.warn('[Migration 017] Semantic search will be disabled, legacy KB loading will be used.');
+        } else {
+          console.error('[Migration 017] Error:', e.message);
+        }
+      }
+    }
   } catch (err) {
     console.error('Migration error:', err.message);
   }
