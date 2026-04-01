@@ -112,7 +112,8 @@ router.post('/register', async (req, res, next) => {
     // 4. Generate JWT
     const token = jwt.sign({ userId: user.id, tenantId: tenant.id }, config.jwtSecret, { expiresIn: '7d' });
 
-    console.log(`[Register] New tenant: ${company_name} (${slug}), user: ${email}, industry: ${industry || 'none'}`);
+    console.log(`[Audit] Self-registration: ${email} created tenant ${company_name} (${slug}) with role tenant_admin`);
+
 
     res.json({
       user: { id: user.id, name: user.name, email: user.email, role: user.role, tenant_id: tenant.id },
@@ -158,6 +159,7 @@ router.post('/create-user', authenticate, requireAdmin, async (req, res, next) =
       [email, hash, name, finalRole, negociosArray[0] || null, JSON.stringify(negociosArray), tenantId || null]
     );
 
+    console.log(`[Audit] User ${req.user.email} created user ${email} with role ${finalRole} in tenant ${tenantId}`);
     res.status(201).json({ user: result.rows[0] });
   } catch (error) { next(error); }
 });
@@ -214,6 +216,7 @@ router.put('/users/:id', authenticate, requireAdmin, async (req, res, next) => {
     query += ' RETURNING id, email, name, role, negocio, negocios';
 
     const result = await pool.query(query, params);
+    console.log(`[Audit] User ${req.user.email} changed role of user ${userId} to ${role || 'creative'}`);
     res.json({ user: result.rows[0] });
   } catch (error) { next(error); }
 });

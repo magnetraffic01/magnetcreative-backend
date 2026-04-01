@@ -230,14 +230,14 @@ router.get('/:id/versions/:versionId/file', authenticate, async (req, res, next)
     console.log(`[Generation] File lookup: image_url="${imageUrl}"`);
 
     const { getFilePath } = require('../services/file-storage');
-    const filepath = getFilePath(imageUrl);
+    const filepath = await getFilePath(imageUrl);
     if (!filepath) {
       console.log(`[Generation] File not on disk: "${imageUrl}"`);
       return res.status(410).json({ error: 'Archivo no encontrado en disco. Puede haber sido eliminado por limpieza automatica.' });
     }
 
     const fs = require('fs');
-    const stat = fs.statSync(filepath);
+    const stat = await fs.promises.stat(filepath);
     console.log(`[Generation] Serving file: ${filepath} (${Math.round(stat.size / 1024)}KB)`);
 
     res.setHeader('Content-Type', 'image/png');

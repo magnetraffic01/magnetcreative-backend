@@ -140,6 +140,7 @@ async function runMigrations() {
 
     // Migration 005: Widen VARCHAR columns that receive AI-generated text
     try {
+      await pool.query('BEGIN');
       await pool.query(`
         ALTER TABLE submissions
           ALTER COLUMN ai_veredicto TYPE TEXT,
@@ -148,8 +149,10 @@ async function runMigrations() {
           ALTER COLUMN ai_uso_recomendado TYPE TEXT,
           ALTER COLUMN estado TYPE VARCHAR(30)
       `);
+      await pool.query('COMMIT');
       console.log('[Migration 005] Widened AI text columns to TEXT');
     } catch (e) {
+      await pool.query('ROLLBACK');
       // Already done or columns don't exist
       if (!e.message.includes('already')) console.log('[Migration 005]', e.message);
     }
@@ -170,28 +173,35 @@ async function runMigrations() {
     const hasVersions = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'submission_versions')`);
     if (!hasVersions.rows[0].exists) {
       console.log('Running migration 007: submission_versions + generation columns...');
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS submission_versions (
-          id SERIAL PRIMARY KEY,
-          submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
-          version_number INTEGER NOT NULL DEFAULT 1,
-          tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('original', 'generated', 'iteration')),
-          image_url TEXT,
-          generation_prompt TEXT,
-          generation_model VARCHAR(50),
-          ai_score INTEGER,
-          ai_recomendaciones JSONB DEFAULT '[]',
-          client_feedback TEXT,
-          client_satisfied BOOLEAN,
-          created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_sv_submission ON submission_versions(submission_id);
-      `);
-      await pool.query(`
-        ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_version INTEGER DEFAULT 1;
-        ALTER TABLE submissions ADD COLUMN IF NOT EXISTS generation_status VARCHAR(20) DEFAULT NULL;
-      `);
-      console.log('Migration 007 complete!');
+      try {
+        await pool.query('BEGIN');
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS submission_versions (
+            id SERIAL PRIMARY KEY,
+            submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+            version_number INTEGER NOT NULL DEFAULT 1,
+            tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('original', 'generated', 'iteration')),
+            image_url TEXT,
+            generation_prompt TEXT,
+            generation_model VARCHAR(50),
+            ai_score INTEGER,
+            ai_recomendaciones JSONB DEFAULT '[]',
+            client_feedback TEXT,
+            client_satisfied BOOLEAN,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+          CREATE INDEX IF NOT EXISTS idx_sv_submission ON submission_versions(submission_id);
+        `);
+        await pool.query(`
+          ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_version INTEGER DEFAULT 1;
+          ALTER TABLE submissions ADD COLUMN IF NOT EXISTS generation_status VARCHAR(20) DEFAULT NULL;
+        `);
+        await pool.query('COMMIT');
+        console.log('Migration 007 complete!');
+      } catch (e) {
+        await pool.query('ROLLBACK');
+        console.error('[Migration 007] Error:', e.message);
+      }
     }
 
     // Migration 008: Archive support
@@ -263,12 +273,19 @@ async function runMigrations() {
     const hasTenantId = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'tenant_id')`);
     if (!hasTenantId.rows[0].exists) {
       console.log('Running migration 013: tenant_id columns...');
-      await pool.query(`
-        ALTER TABLE users ADD COLUMN tenant_id INTEGER REFERENCES tenants(id);
-        ALTER TABLE submissions ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
-        ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
-      `);
-      console.log('Migration 013 complete!');
+      try {
+        await pool.query('BEGIN');
+        await pool.query(`
+          ALTER TABLE users ADD COLUMN tenant_id INTEGER REFERENCES tenants(id);
+          ALTER TABLE submissions ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+          ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id);
+        `);
+        await pool.query('COMMIT');
+        console.log('Migration 013 complete!');
+      } catch (e) {
+        await pool.query('ROLLBACK');
+        console.error('[Migration 013] Error:', e.message);
+      }
     }
 
     // Migration 014: businesses table
@@ -300,23 +317,35 @@ async function runMigrations() {
       const defaultTenant = await pool.query(`SELECT id FROM tenants WHERE slug = 'magnetraffic'`);
       if (defaultTenant.rows.length === 0) {
         console.log('Running migration 015: default tenant...');
+        await pool.query('BEGIN');
         await pool.query(`INSERT INTO tenants (slug, name, domain, status, plan) VALUES ('magnetraffic', 'MagneTraffic', 'studio.magnetraffic.com', 'active', 'enterprise')`);
         const tid = await pool.query(`SELECT id FROM tenants WHERE slug = 'magnetraffic'`);
         const tenantId = tid.rows[0].id;
         await pool.query(`UPDATE users SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
         await pool.query(`UPDATE submissions SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
         await pool.query(`UPDATE knowledge_base SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
+        await pool.query('COMMIT');
         console.log('Migration 015 complete!');
       }
-    } catch (e) { console.log('[Migration 015]', e.message); }
+    } catch (e) {
+      await pool.query('ROLLBACK');
+      console.log('[Migration 015]', e.message);
+    }
 
     // Migration 016: expanded roles + permissions
     const hasPermissions = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'permissions')`);
     if (!hasPermissions.rows[0].exists) {
       console.log('Running migration 016: permissions + roles...');
-      await pool.query(`ALTER TABLE users ADD COLUMN permissions JSONB DEFAULT '[]'`);
-      await pool.query(`UPDATE users SET role = 'super_admin' WHERE email = 'admin@magnetraffic.com'`);
-      console.log('Migration 016 complete!');
+      try {
+        await pool.query('BEGIN');
+        await pool.query(`ALTER TABLE users ADD COLUMN permissions JSONB DEFAULT '[]'`);
+        await pool.query(`UPDATE users SET role = 'super_admin' WHERE email = 'admin@magnetraffic.com'`);
+        await pool.query('COMMIT');
+        console.log('Migration 016 complete!');
+      } catch (e) {
+        await pool.query('ROLLBACK');
+        console.error('[Migration 016] Error:', e.message);
+      }
     }
 
     // Migration 017: pgvector + kb_embeddings for semantic search
@@ -389,8 +418,8 @@ initDB().then(() => {
   startCleanupSchedule();
   app.listen(config.port, () => {
     console.log(`MagnetCreative running on port ${config.port}`);
-    console.log(`[Config] Claude key: ${config.claudeApiKey ? config.claudeApiKey.substring(0, 15) + '...' + config.claudeApiKey.slice(-6) : 'NOT SET'}`);
-    console.log(`[Config] OpenAI key: ${config.openaiApiKey ? config.openaiApiKey.substring(0, 15) + '...' + config.openaiApiKey.slice(-6) : 'NOT SET'}`);
-    console.log(`[Config] Gemini key: ${config.geminiApiKey ? config.geminiApiKey.substring(0, 10) + '...' : 'NOT SET'}`);
+    console.log(`[Config] Claude key: ${config.claudeApiKey ? 'SET' : 'NOT SET'}`);
+    console.log(`[Config] OpenAI key: ${config.openaiApiKey ? 'SET' : 'NOT SET'}`);
+    console.log(`[Config] Gemini key: ${config.geminiApiKey ? 'SET' : 'NOT SET'}`);
   });
 });

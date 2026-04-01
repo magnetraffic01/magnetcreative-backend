@@ -92,7 +92,7 @@ async function generateImprovedImage(submission, recommendations, pool) {
   let originalImagePath = null;
   if (submission.archivo_url) {
     const { getFilePath } = require('./file-storage');
-    originalImagePath = getFilePath(submission.archivo_url);
+    originalImagePath = await getFilePath(submission.archivo_url);
   }
 
   console.log(`[Generation] Generating improved image for submission #${submission.id}`);
@@ -107,7 +107,7 @@ async function generateImprovedImage(submission, recommendations, pool) {
     // GENERATE mode: create from scratch (no original available)
     imageBuffer = await callOpenAIImageGeneration(promptText);
   }
-  const filename = saveFile(imageBuffer, `generated_${submission.id}.png`, `gen_${submission.id}`);
+  const filename = await saveFile(imageBuffer, `generated_${submission.id}.png`, `gen_${submission.id}`);
 
   // Get current max version for this submission
   const versionResult = await pool.query(
@@ -173,7 +173,7 @@ async function generateIteration(submission, versionId, clientFeedback, pool) {
   console.log(`[Generation] Generating iteration for submission #${submission.id}, based on version #${prevVersion.version_number}`);
 
   const imageBuffer = await callOpenAIImageGeneration(promptText);
-  const filename = saveFile(imageBuffer, `iteration_${submission.id}.png`, `iter_${submission.id}`);
+  const filename = await saveFile(imageBuffer, `iteration_${submission.id}.png`, `iter_${submission.id}`);
 
   // Next version number
   const versionResult = await pool.query(
@@ -310,7 +310,7 @@ async function callOpenAIImageEdit(imagePath, promptText) {
   const { FormData, File } = require('node:buffer').Blob ? { FormData: globalThis.FormData, File: globalThis.File } : {};
 
   // Read original image
-  const imageBuffer = fs.readFileSync(imagePath);
+  const imageBuffer = await fs.promises.readFile(imagePath);
   const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
 
   const formData = new FormData();

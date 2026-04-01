@@ -42,6 +42,26 @@ async function generateEmbedding(text, taskType = 'RETRIEVAL_DOCUMENT') {
 }
 
 /**
+ * Retry wrapper with exponential backoff for embedding calls
+ * @param {string} text - Text to embed
+ * @param {string} taskType - RETRIEVAL_DOCUMENT or RETRIEVAL_QUERY
+ * @param {number} maxRetries - Max retry attempts (default 3)
+ * @returns {number[]} - Vector of 768 dimensions
+ */
+async function generateEmbeddingWithRetry(text, taskType, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await generateEmbedding(text, taskType);
+    } catch (err) {
+      if (attempt === maxRetries - 1) throw err;
+      const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+      console.warn(`[Embedding] Retry ${attempt + 1}/${maxRetries} after ${delay}ms: ${err.message}`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+/**
  * Split text into chunks with overlap for better retrieval
  * @param {string} text - Full text to chunk
  * @returns {string[]} - Array of text chunks
@@ -98,7 +118,7 @@ async function embedKBEntry(pool, kbEntry) {
 
   for (let i = 0; i < chunks.length; i++) {
     try {
-      const vector = await generateEmbedding(chunks[i], 'RETRIEVAL_DOCUMENT');
+      const vector = await generateEmbeddingWithRetry(chunks[i], 'RETRIEVAL_DOCUMENT');
       if (vector) {
         await pool.query(
           `INSERT INTO kb_embeddings (kb_id, chunk_index, chunk_text, embedding, negocio, categoria, tenant_id)
@@ -134,7 +154,7 @@ async function searchKB(pool, queryText, filters = {}) {
 
   let queryVector;
   try {
-    queryVector = await generateEmbedding(queryText, 'RETRIEVAL_QUERY');
+    queryVector = await generateEmbeddingWithRetry(queryText, 'RETRIEVAL_QUERY');
   } catch (err) {
     console.error(`[Embedding] Query embedding failed: ${err.message}`);
     return [];
@@ -220,6 +240,7 @@ async function reembedAll(pool) {
 
 module.exports = {
   generateEmbedding,
+  generateEmbeddingWithRetry,
   chunkText,
   embedKBEntry,
   searchKB,

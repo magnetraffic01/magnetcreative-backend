@@ -8,54 +8,63 @@ const MAX_TOTAL_BYTES = 3 * 1024 * 1024 * 1024; // 3GB
 const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 // Ensure uploads directory exists
-function ensureUploadsDir() {
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+async function ensureUploadsDir() {
+  try {
+    await fs.promises.access(UPLOADS_DIR);
+  } catch {
+    await fs.promises.mkdir(UPLOADS_DIR, { recursive: true });
     console.log('[FileStorage] Created uploads directory');
   }
 }
 
 // Save uploaded file to disk, return filename
-function saveFile(buffer, originalName, submissionId) {
-  ensureUploadsDir();
+async function saveFile(buffer, originalName, submissionId) {
+  await ensureUploadsDir();
   const ext = path.extname(originalName) || '.bin';
   const hash = crypto.randomBytes(8).toString('hex');
   const filename = `${submissionId}_${hash}${ext}`;
   const filepath = path.join(UPLOADS_DIR, filename);
-  fs.writeFileSync(filepath, buffer);
+  await fs.promises.writeFile(filepath, buffer);
   console.log(`[FileStorage] Saved ${filename} (${Math.round(buffer.length / 1024)}KB)`);
   return filename;
 }
 
 // Get full path for a filename
-function getFilePath(filename) {
+async function getFilePath(filename) {
   const filepath = path.join(UPLOADS_DIR, path.basename(filename));
-  if (!fs.existsSync(filepath)) return null;
-  return filepath;
+  try {
+    await fs.promises.access(filepath);
+    return filepath;
+  } catch {
+    return null;
+  }
 }
 
 // Get total size of uploads directory
-function getTotalSize() {
-  ensureUploadsDir();
+async function getTotalSize() {
+  await ensureUploadsDir();
   let total = 0;
-  for (const file of fs.readdirSync(UPLOADS_DIR)) {
+  const entries = await fs.promises.readdir(UPLOADS_DIR);
+  for (const file of entries) {
     try {
-      total += fs.statSync(path.join(UPLOADS_DIR, file)).size;
+      const stat = await fs.promises.stat(path.join(UPLOADS_DIR, file));
+      total += stat.size;
     } catch {}
   }
   return total;
 }
 
 // Cleanup: delete files older than MAX_AGE, then enforce MAX_TOTAL_BYTES
-function cleanup() {
-  ensureUploadsDir();
+async function cleanup() {
+  await ensureUploadsDir();
   const now = Date.now();
   let files = [];
 
-  for (const file of fs.readdirSync(UPLOADS_DIR)) {
+  const entries = await fs.promises.readdir(UPLOADS_DIR);
+  for (const file of entries) {
     const filepath = path.join(UPLOADS_DIR, file);
     try {
-      const stat = fs.statSync(filepath);
+      const stat = await fs.promises.stat(filepath);
       files.push({ name: file, path: filepath, size: stat.size, mtime: stat.mtimeMs });
     } catch {}
   }
@@ -66,7 +75,7 @@ function cleanup() {
   for (const f of files) {
     if (now - f.mtime > MAX_AGE_MS) {
       try {
-        fs.unlinkSync(f.path);
+        await fs.promises.unlink(f.path);
         deleted++;
         freedBytes += f.size;
       } catch {}
@@ -74,7 +83,14 @@ function cleanup() {
   }
 
   // Refresh list after age-based cleanup
-  files = files.filter(f => fs.existsSync(f.path));
+  const remaining = [];
+  for (const f of files) {
+    try {
+      await fs.promises.access(f.path);
+      remaining.push(f);
+    } catch {}
+  }
+  files = remaining;
 
   // Phase 2: If still over 2GB, delete oldest first
   let totalSize = files.reduce((sum, f) => sum + f.size, 0);
@@ -83,7 +99,7 @@ function cleanup() {
     for (const f of files) {
       if (totalSize <= MAX_TOTAL_BYTES) break;
       try {
-        fs.unlinkSync(f.path);
+        await fs.promises.unlink(f.path);
         totalSize -= f.size;
         deleted++;
         freedBytes += f.size;
@@ -102,9 +118,11 @@ function cleanup() {
 // Start periodic cleanup
 function startCleanupSchedule() {
   // Run once on startup
-  cleanup();
+  cleanup().catch(err => console.error('[FileStorage] Cleanup error:', err.message));
   // Then every 6 hours
-  setInterval(cleanup, CLEANUP_INTERVAL_MS);
+  setInterval(() => {
+    cleanup().catch(err => console.error('[FileStorage] Cleanup error:', err.message));
+  }, CLEANUP_INTERVAL_MS);
   console.log('[FileStorage] Cleanup scheduled every 6 hours (max 14 days, max 3GB)');
 }
 

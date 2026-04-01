@@ -3,6 +3,66 @@ const { analyzeWithClaude } = require('./claude');
 const { analyzeContent: analyzeWithGemini } = require('./gemini');
 const { parseAIResponse } = require('./parse-ai-response');
 
+// Simple circuit breaker for AI providers
+const circuitState = {
+  claude: { failures: 0, lastFailure: 0, open: false },
+  openai: { failures: 0, lastFailure: 0, open: false },
+  gemini: { failures: 0, lastFailure: 0, open: false }
+};
+const CIRCUIT_THRESHOLD = 3; // failures before opening
+const CIRCUIT_RESET_MS = 60000; // 1 min cooldown
+const AI_CALL_TIMEOUT_MS = 60000; // 60s timeout per AI call
+
+function isCircuitOpen(provider) {
+  const state = circuitState[provider];
+  if (!state.open) return false;
+  if (Date.now() - state.lastFailure > CIRCUIT_RESET_MS) {
+    state.open = false;
+    state.failures = 0;
+    return false;
+  }
+  return true;
+}
+
+function recordFailure(provider) {
+  const state = circuitState[provider];
+  state.failures++;
+  state.lastFailure = Date.now();
+  if (state.failures >= CIRCUIT_THRESHOLD) {
+    state.open = true;
+    console.warn(`[CircuitBreaker] ${provider} circuit OPEN after ${state.failures} failures`);
+  }
+}
+
+function recordSuccess(provider) {
+  circuitState[provider].failures = 0;
+  circuitState[provider].open = false;
+}
+
+function allCircuitsOpen() {
+  return isCircuitOpen('claude') && isCircuitOpen('openai') && isCircuitOpen('gemini');
+}
+
+function gracefulFallbackResponse() {
+  return {
+    score: null,
+    resumen: 'Todos los servicios de IA están temporalmente no disponibles. Tu creativo ha sido guardado y será analizado automáticamente cuando el servicio se restaure.',
+    veredicto: 'pendiente',
+    fortalezas: [],
+    problemas: [],
+    recomendaciones: [],
+    ai_uso_recomendado: null
+  };
+}
+
+// Wraps an async AI call with a timeout
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`AI call timed out after ${ms}ms`)), ms))
+  ]);
+}
+
 const PLATFORM_SPECS = {
   Facebook: {
     feed: '1080x1080 (1:1) o 1200x628 (1.91:1)',
@@ -55,68 +115,125 @@ async function analyzeSubmission(submission, imageBase64, imageMimeType) {
 
   console.log(`[AI Router] tipo=${tipo}, hasBase64=${!!imageBase64}, hasGeminiURI=${!!submission.gemini_file_uri}`);
 
+  // If all circuits are open, return graceful fallback immediately
+  if (allCircuitsOpen()) {
+    console.warn('[AI Router] All circuits open - returning graceful fallback');
+    return gracefulFallbackResponse();
+  }
+
   // ===== RULE 1: Videos & Presentations -> Gemini =====
   if (tipo === 'video' || (tipo === 'presentacion' && submission.gemini_file_uri)) {
-    console.log(`[AI Router] ${tipo} -> Gemini`);
-    return await analyzeWithGemini(submission);
+    if (!isCircuitOpen('gemini')) {
+      try {
+        console.log(`[AI Router] ${tipo} -> Gemini`);
+        const result = await withTimeout(analyzeWithGemini(submission), AI_CALL_TIMEOUT_MS);
+        recordSuccess('gemini');
+        return result;
+      } catch (err) {
+        console.error(`[AI Router] Gemini failed: ${err.message}`);
+        recordFailure('gemini');
+      }
+    } else {
+      console.warn(`[AI Router] Gemini circuit open, skipping for ${tipo}`);
+    }
   }
 
   // ===== RULE 2: Non-video WITH base64 -> Claude (Anthropic) =====
   if (imageBase64) {
     // Try Claude first
-    if (config.claudeApiKey) {
+    if (config.claudeApiKey && !isCircuitOpen('claude')) {
       try {
         console.log(`[AI Router] ${tipo} + base64 -> Claude (Anthropic)`);
-        return await analyzeWithClaude(submission, imageBase64, imageMimeType);
+        const result = await withTimeout(analyzeWithClaude(submission, imageBase64, imageMimeType), AI_CALL_TIMEOUT_MS);
+        recordSuccess('claude');
+        return result;
       } catch (err) {
         console.error(`[AI Router] Claude failed: ${err.message}`);
+        recordFailure('claude');
       }
+    } else if (isCircuitOpen('claude')) {
+      console.warn(`[AI Router] Claude circuit open, skipping`);
     }
     // Fallback to OpenAI
-    if (config.openaiApiKey) {
+    if (config.openaiApiKey && !isCircuitOpen('openai')) {
       try {
         console.log(`[AI Router] ${tipo} + base64 -> OpenAI (fallback)`);
-        return await analyzeWithOpenAI(submission, imageBase64, imageMimeType);
+        const result = await withTimeout(analyzeWithOpenAI(submission, imageBase64, imageMimeType), AI_CALL_TIMEOUT_MS);
+        recordSuccess('openai');
+        return result;
       } catch (err) {
         console.error(`[AI Router] OpenAI failed: ${err.message}`);
+        recordFailure('openai');
       }
+    } else if (isCircuitOpen('openai')) {
+      console.warn(`[AI Router] OpenAI circuit open, skipping`);
     }
   }
 
   // ===== RULE 3: Emails -> Claude -> OpenAI -> Gemini =====
   if (tipo === 'email') {
-    if (config.claudeApiKey) {
+    if (config.claudeApiKey && !isCircuitOpen('claude')) {
       try {
         console.log(`[AI Router] email -> Claude`);
-        return await analyzeWithClaude(submission, null, null);
-      } catch (err) { console.error(`[AI Router] Claude email failed: ${err.message}`); }
+        const result = await withTimeout(analyzeWithClaude(submission, null, null), AI_CALL_TIMEOUT_MS);
+        recordSuccess('claude');
+        return result;
+      } catch (err) {
+        console.error(`[AI Router] Claude email failed: ${err.message}`);
+        recordFailure('claude');
+      }
+    } else if (isCircuitOpen('claude')) {
+      console.warn(`[AI Router] Claude circuit open, skipping email`);
     }
-    if (config.openaiApiKey) {
+    if (config.openaiApiKey && !isCircuitOpen('openai')) {
       try {
         console.log(`[AI Router] email -> OpenAI`);
-        return await analyzeWithOpenAI(submission, null, null);
-      } catch (err) { console.error(`[AI Router] OpenAI email failed: ${err.message}`); }
+        const result = await withTimeout(analyzeWithOpenAI(submission, null, null), AI_CALL_TIMEOUT_MS);
+        recordSuccess('openai');
+        return result;
+      } catch (err) {
+        console.error(`[AI Router] OpenAI email failed: ${err.message}`);
+        recordFailure('openai');
+      }
+    } else if (isCircuitOpen('openai')) {
+      console.warn(`[AI Router] OpenAI circuit open, skipping email`);
     }
   }
 
   // ===== RULE 4: Has Gemini URI but no base64 -> Gemini =====
-  if (submission.gemini_file_uri) {
+  if (submission.gemini_file_uri && !isCircuitOpen('gemini')) {
     try {
       console.log(`[AI Router] ${tipo} -> Gemini (file URI, no base64)`);
-      return await analyzeWithGemini(submission);
+      const result = await withTimeout(analyzeWithGemini(submission), AI_CALL_TIMEOUT_MS);
+      recordSuccess('gemini');
+      return result;
     } catch (err) {
       console.error(`[AI Router] Gemini with file failed: ${err.message}`);
+      recordFailure('gemini');
     }
+  } else if (submission.gemini_file_uri && isCircuitOpen('gemini')) {
+    console.warn(`[AI Router] Gemini circuit open, skipping file URI`);
   }
 
   // ===== LAST RESORT: Gemini text-only =====
-  if (config.geminiApiKey) {
+  if (config.geminiApiKey && !isCircuitOpen('gemini')) {
     try {
       console.log(`[AI Router] ${tipo} -> Gemini text-only (last resort)`);
-      return await analyzeWithGemini({ ...submission, gemini_file_uri: null });
+      const result = await withTimeout(analyzeWithGemini({ ...submission, gemini_file_uri: null }), AI_CALL_TIMEOUT_MS);
+      recordSuccess('gemini');
+      return result;
     } catch (err) {
       console.error(`[AI Router] Gemini text-only failed: ${err.message}`);
+      recordFailure('gemini');
     }
+  } else if (isCircuitOpen('gemini')) {
+    console.warn(`[AI Router] Gemini circuit open, skipping text-only last resort`);
+  }
+
+  // If we get here after exhausting all providers, check if circuits caused it
+  if (allCircuitsOpen()) {
+    console.warn('[AI Router] All circuits now open - returning graceful fallback');
+    return gracefulFallbackResponse();
   }
 
   throw new Error('Todos los proveedores de IA fallaron.');

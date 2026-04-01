@@ -18,8 +18,12 @@ function authenticate(req, res, next) {
         req.user = result.rows[0];
         next();
       })
-      .catch(() => res.status(500).json({ error: 'Server error' }));
-  } catch {
+      .catch((err) => {
+        console.error(`[Auth] DB error for user ${decoded.userId}: ${err.message}`);
+        res.status(500).json({ error: 'Server error' });
+      });
+  } catch (err) {
+    console.warn(`[Auth] Invalid token: ${err.message}`);
     return res.status(401).json({ error: 'Invalid token' });
   }
 }

@@ -36,54 +36,77 @@ function getEstadoByScore(score) {
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Try n8n async first, fallback to sync analysis
+// Uses BEGIN/COMMIT transaction with FOR UPDATE SKIP LOCKED to prevent duplicate analysis
 async function analyzeOrDispatch(submission, pool, imageBase64, imageMimeType) {
-  // Prevent duplicate analysis
-  const lockCheck = await pool.query(
-    "SELECT id FROM submissions WHERE id = $1 AND estado = 'analizando' AND ai_analyzed_at IS NOT NULL",
-    [submission.id]
-  );
-  if (lockCheck.rows.length > 0) {
-    console.log(`[Submission] #${submission.id}: Already analyzed, skipping duplicate`);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Acquire lock on submission row to prevent duplicate analysis
+    const lockResult = await client.query(
+      "SELECT id, estado, ai_analyzed_at FROM submissions WHERE id = $1 FOR UPDATE SKIP LOCKED",
+      [submission.id]
+    );
+    if (lockResult.rows.length === 0) {
+      // Row is locked by another process, skip
+      await client.query('COMMIT');
+      console.log(`[Submission] #${submission.id}: Locked by another analysis, skipping`);
+      const current = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
+      return { async: false, submission: current.rows[0] };
+    }
+    if (lockResult.rows[0].ai_analyzed_at) {
+      // Already analyzed
+      await client.query('COMMIT');
+      console.log(`[Submission] #${submission.id}: Already analyzed, skipping`);
+      const current = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
+      return { async: false, submission: current.rows[0] };
+    }
+
+    // Try n8n dispatch (async)
+    const dispatched = await dispatchToN8n(submission, pool);
+    if (dispatched) {
+      // n8n will process and call back — return submission as-is (estado=analizando)
+      await client.query('COMMIT');
+      const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
+      return { async: true, submission: result.rows[0] };
+    }
+
+    // Fallback: sync analysis (original behavior)
+    const analysis = await analyzeSubmission(submission, imageBase64, imageMimeType);
+    const finalScore = analysis.score || 50;
+    const estado = getEstadoByScore(finalScore);
+
+    await client.query(`
+      UPDATE submissions SET
+        estado = $13,
+        ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
+        ai_hook_presente = $4, ai_hook_descripcion = $5,
+        ai_cta_presente = $6, ai_cta_descripcion = $7,
+        ai_fortalezas = $8, ai_problemas = $9, ai_recomendaciones = $10,
+        ai_uso_recomendado = $11, ai_analyzed_at = NOW(), updated_at = NOW()
+      WHERE id = $12
+    `, [
+      finalScore, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
+      analysis.hook_presente ?? analysis.hook_primeros_3s ?? null, analysis.hook_descripcion || null,
+      analysis.cta_presente ?? null, analysis.cta_descripcion || null,
+      JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
+      JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
+      submission.id, estado
+    ]);
+
+    await client.query('COMMIT');
+
+    // Record learning from this evaluation (outside transaction)
+    recordLearning(pool, submission, analysis).catch(() => {});
+
     const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
     return { async: false, submission: result.rows[0] };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
-
-  // Try n8n dispatch (async)
-  const dispatched = await dispatchToN8n(submission, pool);
-  if (dispatched) {
-    // n8n will process and call back — return submission as-is (estado=analizando)
-    const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
-    return { async: true, submission: result.rows[0] };
-  }
-
-  // Fallback: sync analysis (original behavior)
-  const analysis = await analyzeSubmission(submission, imageBase64, imageMimeType);
-  const finalScore = analysis.score || 50;
-  const estado = getEstadoByScore(finalScore);
-
-  await pool.query(`
-    UPDATE submissions SET
-      estado = $13,
-      ai_score = $1, ai_resumen = $2, ai_veredicto = $3,
-      ai_hook_presente = $4, ai_hook_descripcion = $5,
-      ai_cta_presente = $6, ai_cta_descripcion = $7,
-      ai_fortalezas = $8, ai_problemas = $9, ai_recomendaciones = $10,
-      ai_uso_recomendado = $11, ai_analyzed_at = NOW(), updated_at = NOW()
-    WHERE id = $12
-  `, [
-    finalScore, analysis.resumen || 'Sin resumen', analysis.veredicto || 'cambios',
-    analysis.hook_presente ?? analysis.hook_primeros_3s ?? null, analysis.hook_descripcion || null,
-    analysis.cta_presente ?? null, analysis.cta_descripcion || null,
-    JSON.stringify(analysis.fortalezas || []), JSON.stringify(analysis.problemas || []),
-    JSON.stringify(analysis.recomendaciones || []), analysis.uso_recomendado || null,
-    submission.id, estado
-  ]);
-
-  // Record learning from this evaluation
-  recordLearning(pool, submission, analysis).catch(() => {});
-
-  const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [submission.id]);
-  return { async: false, submission: result.rows[0] };
 }
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
@@ -146,7 +169,7 @@ router.post('/gemini-upload', authenticate, upload.single('file'), async (req, r
     // Also save video to disk for admin download/preview
     let savedFilename = null;
     try {
-      savedFilename = saveFile(req.file.buffer, req.file.originalname, `gemini_${Date.now()}`);
+      savedFilename = await saveFile(req.file.buffer, req.file.originalname, `gemini_${Date.now()}`);
     } catch (saveErr) {
       console.error('[FileStorage] Failed to save video:', saveErr.message);
     }
@@ -192,7 +215,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
 
       // Save file to disk for later download/preview
       try {
-        const savedFilename = saveFile(req.file.buffer, req.file.originalname, submission.id);
+        const savedFilename = await saveFile(req.file.buffer, req.file.originalname, submission.id);
         await pool.query('UPDATE submissions SET archivo_nombre = $1, archivo_size = $2, archivo_url = $3 WHERE id = $4', [
           req.file.originalname, req.file.size, savedFilename, submission.id
         ]);
@@ -308,9 +331,14 @@ router.get('/', authenticate, async (req, res, next) => {
     const params = [];
     if (include_archived !== 'true') { query += ` AND (s.archived IS NULL OR s.archived = false)`; }
     if (req.user.role === 'creative') { params.push(req.user.id); query += ` AND s.user_id = $${params.length}`; }
-    if (req.user.role !== 'super_admin' && req.user.tenant_id) {
+    if (req.user.role === 'super_admin') {
+      // super_admin sees all submissions, no tenant filter
+    } else if (req.user.tenant_id) {
       params.push(req.user.tenant_id);
       query += ` AND s.tenant_id = $${params.length}`;
+    } else {
+      // User has no tenant_id and is not super_admin — return empty results
+      return res.json({ submissions: [] });
     }
     if (tipo) { params.push(tipo); query += ` AND s.tipo = $${params.length}`; }
     if (negocio) { params.push(negocio); query += ` AND s.negocio = $${params.length}`; }
@@ -356,7 +384,7 @@ router.get('/:id/file', authenticate, async (req, res, next) => {
     if (!sub.archivo_url) return res.status(404).json({ error: 'No file associated' });
 
     // archivo_url stores the local filename on disk
-    const filepath = getFilePath(sub.archivo_url);
+    const filepath = await getFilePath(sub.archivo_url);
     if (!filepath) return res.status(410).json({ error: 'Archivo expirado (se eliminan despues de 3 dias). Pide al creativo que lo suba de nuevo.' });
 
     // Set proper content-type based on extension
@@ -451,7 +479,7 @@ router.post('/:id/resubmit', authenticate, upload.single('file'), async (req, re
     }
 
     // Save new file
-    const savedFilename = saveFile(req.file.buffer, req.file.originalname, submissionId);
+    const savedFilename = await saveFile(req.file.buffer, req.file.originalname, submissionId);
 
     // Save new version record
     const newVersionNum = nextVersion + 1;

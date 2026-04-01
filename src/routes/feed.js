@@ -1,12 +1,16 @@
 const express = require('express');
+const { authenticate } = require('../middleware/auth');
+
 const router = express.Router();
 
-// GET /feed - Public feed for ActuarialAds integration (no auth required)
-// Returns submissions with AI scores for display in Pipeline Creativo
-router.get('/', async (req, res) => {
+const MAX_LIMIT = 100;
+
+// GET /feed - Authenticated feed for Pipeline Creativo
+// For public access, use the share token feature (POST /submissions/:id/share)
+router.get('/', authenticate, async (req, res) => {
   try {
     const pool = req.app.get('db');
-    const { estado, negocio, limit, tenant_id } = req.query;
+    const { estado, negocio, limit } = req.query;
 
     let query = `
       SELECT s.id, s.titulo, s.tipo, s.negocio, s.plataforma, s.estado,
@@ -23,18 +27,22 @@ router.get('/', async (req, res) => {
     const params = [];
     let idx = 1;
 
-    // Optional tenant scoping via query param
-    if (tenant_id) { query += ` AND s.tenant_id = $${idx++}`; params.push(tenant_id); }
+    // Tenant filtering: non-super_admin users only see their own tenant
+    if (req.user.role !== 'super_admin' && req.user.tenant_id) {
+      query += ` AND s.tenant_id = $${idx++}`;
+      params.push(req.user.tenant_id);
+    }
+
     if (estado) { query += ` AND s.estado = $${idx++}`; params.push(estado); }
     if (negocio) { query += ` AND s.negocio = $${idx++}`; params.push(negocio); }
 
     query += ' ORDER BY s.created_at DESC';
     query += ` LIMIT $${idx++}`;
-    params.push(parseInt(limit) || 50);
+    params.push(Math.min(parseInt(limit) || 50, MAX_LIMIT));
 
     const result = await pool.query(query, params);
 
-    // Stats summary (also tenant-scoped if provided)
+    // Stats summary (tenant-scoped)
     let statsQuery = `
       SELECT
         COUNT(*) as total,
@@ -44,11 +52,12 @@ router.get('/', async (req, res) => {
         COUNT(*) FILTER (WHERE s.estado = 'cambios') as con_cambios,
         ROUND(AVG(s.ai_score) FILTER (WHERE s.ai_score IS NOT NULL)) as score_promedio
       FROM submissions s
+      WHERE 1=1
     `;
     const statsParams = [];
-    if (tenant_id) {
-      statsQuery += ` WHERE s.tenant_id = $1`;
-      statsParams.push(tenant_id);
+    if (req.user.role !== 'super_admin' && req.user.tenant_id) {
+      statsQuery += ` AND s.tenant_id = $1`;
+      statsParams.push(req.user.tenant_id);
     }
     const stats = await pool.query(statsQuery, statsParams);
 
@@ -62,17 +71,20 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /feed/pending - Only submissions waiting for Amed's approval
-router.get('/pending', async (req, res) => {
+// GET /feed/pending - Only submissions waiting for admin approval
+router.get('/pending', authenticate, async (req, res) => {
   try {
     const pool = req.app.get('db');
-    const { tenant_id } = req.query;
-    const pendingParams = [];
-    let pendingTenantFilter = '';
-    if (tenant_id) {
-      pendingParams.push(tenant_id);
-      pendingTenantFilter = ` AND s.tenant_id = $1`;
+    const params = [];
+    let tenantFilter = '';
+    let idx = 1;
+
+    // Tenant filtering: non-super_admin users only see their own tenant
+    if (req.user.role !== 'super_admin' && req.user.tenant_id) {
+      tenantFilter = ` AND s.tenant_id = $${idx++}`;
+      params.push(req.user.tenant_id);
     }
+
     const result = await pool.query(`
       SELECT s.id, s.titulo, s.tipo, s.negocio, s.estado,
              s.ai_score, s.ai_resumen, s.ai_veredicto,
@@ -81,10 +93,10 @@ router.get('/pending', async (req, res) => {
              s.created_at
       FROM submissions s
       JOIN users u ON s.user_id = u.id
-      WHERE s.estado = 'evaluado'${pendingTenantFilter}
+      WHERE s.estado = 'evaluado'${tenantFilter}
       ORDER BY s.ai_score DESC, s.created_at ASC
       LIMIT 20
-    `, pendingParams);
+    `, params);
     res.json({ total: result.rows.length, submissions: result.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
