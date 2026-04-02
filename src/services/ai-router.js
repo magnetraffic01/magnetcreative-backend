@@ -257,14 +257,15 @@ async function analyzeWithOpenAI(submission, imageBase64, imageMimeType) {
 3. Dar ALTERNATIVAS listas para copiar y usar
 
 REGLA CRITICA DE SCORING:
-- La rubrica con los criterios y sus PESOS viene en el contexto
+- La rubrica con los criterios y sus PESOS viene en el contexto del mensaje
 - Evalua CADA criterio por separado usando el peso que indica la rubrica
 - El score FINAL es la SUMA de todos los criterios con sus pesos
-- MUESTRA el desglose en el resumen
+- MUESTRA el desglose: "Scroll-stopping: 14/18, StoryBrand: 10/15, CTA: 8/12..."
+- La misma pieza SIEMPRE debe dar el MISMO score
 - Si score >= 70: veredicto = "aprobar". Si 40-69: "cambios". Si <40: "rechazar"
 
-Responde SOLO con JSON valido sin markdown.
-JSON: {"score":0-100,"resumen":"Desglose: [criterio: X/peso...]. Total: X/100.","texto_legible":true/false,"cta_presente":true/false,"cta_descripcion":"","hook_presente":true/false,"hook_descripcion":"","fortalezas":[""],"problemas":["con VERSION CORREGIDA"],"recomendaciones":[{"area":"","detalle":"problema + CORRECCION","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar","uso_recomendado":"feed|stories|reels|todos"}`;
+Responde SOLO con JSON valido sin markdown ni texto adicional.
+JSON: {"score":0-100,"resumen":"Desglose: [criterio: X/peso...]. Total: X/100. [2 oraciones resumen]","texto_legible":true/false,"cta_presente":true/false,"cta_descripcion":"string","hook_presente":true/false,"hook_descripcion":"string","fortalezas":["lista"],"problemas":["lista con VERSION CORREGIDA"],"recomendaciones":[{"area":"string","detalle":"problema + VERSION CORREGIDA lista para usar","accion":"mantener|cambiar|eliminar"}],"veredicto":"aprobar|cambios|rechazar","uso_recomendado":"feed|stories|reels|todos"}`;
 
   let userText = `CREATIVO A EVALUAR:\n- Titulo: ${submission.titulo}\n- Negocio: ${submission.negocio}\n- Tipo: ${tipo}\n- Plataforma: ${submission.plataforma || 'facebook'}\n`;
   if (submission.descripcion) userText += `- Descripcion: ${submission.descripcion}\n`;
