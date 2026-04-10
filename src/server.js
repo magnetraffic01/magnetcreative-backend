@@ -54,11 +54,20 @@ const dbUrl = (config.databaseUrl || '').replace(/[?&]sslmode=[^&]*/g, '');
 const pool = new Pool({
   connectionString: dbUrl,
   ssl: false,
-  min: 5,
+  min: 2,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000
 });
+
+// Prevent crash on PostgreSQL disconnect (code 57P01)
+pool.on('error', (err) => {
+  console.error('[DB Pool] Unexpected error on idle client:', err.message);
+  if (err.code === '57P01') {
+    console.log('[DB Pool] PostgreSQL terminated connection - pool will auto-reconnect');
+  }
+});
+
 app.set('db', pool);
 
 // ActuarialAds Database (for creative_vault sync)
@@ -68,25 +77,37 @@ if (config.actuarialDbUrl) {
     connectionString: actuarialUrl,
     ssl: false
   });
+  actuarialPool.on('error', (err) => {
+    console.error('[ActuarialDB Pool] Unexpected error on idle client:', err.message);
+  });
   app.set('actuarialDb', actuarialPool);
   console.log('ActuarialAds DB connected');
 }
 
-// Init database
-async function initDB() {
-  try {
-    const check = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'submissions')`);
-    if (!check.rows[0].exists) {
-      console.log('Initializing database...');
-      const schema = fs.readFileSync(path.join(__dirname, '..', 'database', 'schema.sql'), 'utf8');
-      await pool.query(schema);
-      console.log('Database initialized!');
+// Init database with retry
+async function initDB(retries = 5) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const check = await pool.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'submissions')`);
+      if (!check.rows[0].exists) {
+        console.log('Initializing database...');
+        const schema = fs.readFileSync(path.join(__dirname, '..', 'database', 'schema.sql'), 'utf8');
+        await pool.query(schema);
+        console.log('Database initialized!');
+      }
+      // Run migrations
+      await runMigrations();
+      return;
+    } catch (err) {
+      console.error(`DB init error (attempt ${attempt}/${retries}):`, err.message);
+      if (attempt < retries) {
+        const delay = attempt * 3000;
+        console.log(`[DB] Retrying in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
-    // Run migrations
-    await runMigrations();
-  } catch (err) {
-    console.error('DB init error:', err.message);
   }
+  console.error('[DB] All init attempts failed - server running without DB');
 }
 
 async function runMigrations() {
