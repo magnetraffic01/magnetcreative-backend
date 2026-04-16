@@ -14,6 +14,38 @@
 
 ## Release History
 
+### Operational Note — CORS deploy-cache resolution (2026-04-16)
+**Commit:** `65acadc` (no new code; redeploy-only fix)
+
+#### Symptom
+Browser at `studio.magnetraffic.com/upload` showed:
+```
+Access to fetch at 'https://creative.magnetraffic.com/submissions/gemini-upload'
+from origin 'https://studio.magnetraffic.com' has been blocked by CORS policy:
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+#### Root cause
+EasyPanel was serving an older container image. The fix (hardcoding `https://studio.magnetraffic.com` in `server.js:19` allowed origins) had been in `master` for 3+ days but the running container predated it.
+
+#### Resolution
+- No code change. Forced redeploy via EasyPanel UI (`pholji.easypanel.host` → `magnetcreative-bk` → Deploy button).
+- Verified with `curl -I -X OPTIONS -H "Origin: https://studio.magnetraffic.com" https://creative.magnetraffic.com/submissions/gemini-upload` → returned `204` with `Access-Control-Allow-Origin: https://studio.magnetraffic.com` ✓
+
+#### Lesson — diagnostic order for CORS errors
+1. Run `curl -I -X OPTIONS` against the deployed endpoint FIRST.
+2. If curl shows the headers but the browser doesn't → browser cache; hard refresh.
+3. If curl does NOT show headers but source code does → deploy/cache issue; force redeploy.
+4. Only edit CORS config if curl AND source both lack the headers.
+
+#### Recurrence
+This is the **2nd documented EasyPanel deploy-cache trap**. First was actuarialads bug F04 (2026-03-29). Pattern documented in `~/.claude/projects/.../memory/reference_easypanel_deploy_cache_pattern.md` and `MT-Wiki/concepts/easypanel-deploy-cache-trap.md`.
+
+#### Outstanding
+- **React error #31** on the frontend (`studiomagnetrafficweb`): blank screen after backend returns valid score. Backend is fine; bug is in result-rendering component. Tracked as P1 on the project.
+
+---
+
 ### v2.3.0 — KB Enrichment & Documentation (2026-04-04)
 **Commit:** `b5dc93a` + `5fd25f1`
 
