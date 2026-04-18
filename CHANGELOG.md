@@ -14,6 +14,37 @@
 
 ## Release History
 
+### Fix — Normalize fortalezas/problemas to string arrays (2026-04-17)
+**File:** `src/services/parse-ai-response.js`
+
+#### Symptom
+Frontend (`magnetraffic01/exactly-as-seen`, `AIAnalysisDisplay.tsx:170-192`) rendered a blank page with `Minified React error #31; ...args[]=object with keys {...}` right after the evaluation score appeared.
+
+#### Root cause
+`AIAnalysisDisplay.tsx` declares `fortalezas?: string[]` / `problemas?: string[]` and renders items directly:
+
+```jsx
+{analisis.fortalezas.map((f, i) => <li>{f}</li>)}
+```
+
+TypeScript does not validate at runtime. When Gemini (or Claude/OpenAI via `ai-router`) occasionally ignores the prompt schema and returns those fields as arrays of objects (e.g. `[{area, detalle}]`), `{f}` tries to render the object as a React child and crashes the whole tree.
+
+#### Fix
+Added `coerceToStringArray()` + `normalizeShape()` helpers to `parse-ai-response.js`. Every return path in `parseAIResponse` now guarantees `fortalezas` and `problemas` are `string[]`. Object items are coerced via the first non-empty of `detalle | texto | descripcion | problema | fortaleza`, falling back to `JSON.stringify(item)`.
+
+Recomendaciones intentionally stays as `[{area, detalle, accion}]` — the frontend already destructures those safely.
+
+#### Verified
+```js
+parseAIResponse('{"fortalezas":[{"area":"hook","detalle":"buen gancho"},"string normal"],"problemas":[{"problema":"cta debil"}]}')
+// -> fortalezas: ["buen gancho","string normal"], problemas: ["cta debil"]
+```
+
+#### Defense-in-depth
+A parallel defensive render + ErrorBoundary fix lands in the frontend repo `magnetraffic01/exactly-as-seen`. Both fixes are independent — backend fix alone resolves the reported crash, frontend fix prevents any future shape drift from whiting out the app.
+
+---
+
 ### Operational Note — CORS deploy-cache resolution (2026-04-16)
 **Commit:** `65acadc` (no new code; redeploy-only fix)
 

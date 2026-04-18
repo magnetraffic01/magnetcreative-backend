@@ -1,6 +1,30 @@
 // Robust multi-strategy JSON parser for AI responses (Gemini, Claude, OpenAI)
 // Handles: markdown wrappers, pretty-printed JSON, control chars in strings, truncated responses
 
+// Coerce array items to strings. LLMs occasionally return objects where the
+// schema asks for strings (e.g. fortalezas: [{area,detalle}] instead of ["texto"]).
+// Frontend renders these arrays directly as React children, so objects crash with
+// React error #31. This defensive coercion protects every downstream consumer.
+function coerceToStringArray(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(item => {
+    if (typeof item === 'string') return item;
+    if (item == null) return '';
+    if (typeof item === 'object') {
+      return item.detalle || item.texto || item.descripcion || item.problema || item.fortaleza || JSON.stringify(item);
+    }
+    return String(item);
+  });
+}
+
+function normalizeShape(parsed) {
+  if (parsed && typeof parsed === 'object') {
+    parsed.fortalezas = coerceToStringArray(parsed.fortalezas);
+    parsed.problemas = coerceToStringArray(parsed.problemas);
+  }
+  return parsed;
+}
+
 function parseAIResponse(text, provider = 'AI') {
   const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   let parsed = {};
@@ -10,7 +34,7 @@ function parseAIResponse(text, provider = 'AI') {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
       parsed = JSON.parse(match[0]);
-      return parsed;
+      return normalizeShape(parsed);
     }
   } catch (e1) {
     console.log(`[${provider}] Strategy 1 failed: ${e1.message}`);
@@ -30,7 +54,7 @@ function parseAIResponse(text, provider = 'AI') {
       });
       parsed = JSON.parse(jsonStr);
       console.log(`[${provider}] Strategy 2 succeeded (control char fix in strings)`);
-      return parsed;
+      return normalizeShape(parsed);
     }
   } catch (e2) {
     console.log(`[${provider}] Strategy 2 failed: ${e2.message}`);
@@ -43,7 +67,7 @@ function parseAIResponse(text, provider = 'AI') {
       let jsonStr = match[0].replace(/[\r\n]+/g, ' ');
       parsed = JSON.parse(jsonStr);
       console.log(`[${provider}] Strategy 3 succeeded (newlines to spaces)`);
-      return parsed;
+      return normalizeShape(parsed);
     }
   } catch (e3) {
     console.log(`[${provider}] Strategy 3 failed: ${e3.message}`);
@@ -74,7 +98,7 @@ function parseAIResponse(text, provider = 'AI') {
     }
 
     console.log(`[${provider}] Strategy 4 succeeded (regex extraction, score=${parsed.score}, fortalezas=${parsed.fortalezas.length}, problemas=${parsed.problemas.length})`);
-    return parsed;
+    return normalizeShape(parsed);
   }
 
   console.error(`[${provider}] All strategies failed. Raw text (first 500): ${text.substring(0, 500)}`);
